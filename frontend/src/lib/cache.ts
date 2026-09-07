@@ -172,6 +172,50 @@ export async function getCachedCatalogVectors() {
   }
 }
 
+const isUUID = (str: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+export async function resolveMangaRecord(idOrSlug: string, supabase: any) {
+  if (!idOrSlug) return null;
+
+  // 1. Direct UUID lookup
+  if (isUUID(idOrSlug)) {
+    const { data } = await supabase
+      .from('manga')
+      .select('*')
+      .eq('id', idOrSlug)
+      .maybeSingle();
+    if (data) return data;
+  }
+
+  // 2. Source ID lookup (e.g. MangaDex UUID or MangaPill ID)
+  const { data: bySource } = await supabase
+    .from('manga')
+    .select('*')
+    .eq('source_id', idOrSlug)
+    .maybeSingle();
+  if (bySource) return bySource;
+
+  // 3. Exact Title / Clean Slug lookup
+  const cleanTitle = decodeURIComponent(idOrSlug).replace(/[-_]+/g, ' ').trim();
+  const { data: byTitle } = await supabase
+    .from('manga')
+    .select('*')
+    .ilike('title', cleanTitle)
+    .limit(1);
+  if (byTitle && byTitle.length > 0) return byTitle[0];
+
+  // 4. Fuzzy / Substring Title lookup
+  const { data: byFuzzy } = await supabase
+    .from('manga')
+    .select('*')
+    .ilike('title', `%${cleanTitle}%`)
+    .limit(1);
+  if (byFuzzy && byFuzzy.length > 0) return byFuzzy[0];
+
+  return null;
+}
+
 export async function getCachedMangaDetail(id: string) {
   const cacheKey = `manga_detail:${id}`;
   const cached = getCached<any>(cacheKey);
@@ -181,19 +225,15 @@ export async function getCachedMangaDetail(id: string) {
   if (!supabase) return null;
 
   try {
-    const { data: manga, error: mangaErr } = await supabase
-      .from('manga')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (mangaErr || !manga) return null;
+    const manga = await resolveMangaRecord(id, supabase);
+    if (!manga) return null;
 
     const { data: chapters } = await supabase
       .from('chapters')
       .select('id, chapter_number, title, job_status, language, scanlation_group, created_at')
-      .eq('manga_id', id)
-      .order('chapter_number', { ascending: true });
+      .eq('manga_id', manga.id)
+      .order('chapter_number', { ascending: true })
+      .limit(5000);
 
     const chapterNumbers = (chapters || []).map(c => Number(c.chapter_number) || 0);
     const latestChapter = chapterNumbers.length > 0 ? Math.max(...chapterNumbers) : 1;

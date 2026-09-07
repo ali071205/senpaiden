@@ -22,7 +22,7 @@ export function ContinueReadingBubble() {
   if (!latest || isDismissed) return null;
 
   return (
-    <div className="fixed bottom-20 right-4 z-40 md:bottom-6 md:right-6 animate-bounce-subtle">
+    <div className="fixed bottom-36 right-4 z-40 md:bottom-6 md:right-6 animate-bounce-subtle">
       <div className="sd-glass flex items-center gap-3 rounded-2xl p-1.5 pr-3 shadow-[0_10px_30px_-5px_rgba(139,92,246,0.6)] border border-[#8B5CF6]/40 backdrop-blur-xl">
         <Link
           href={`/manga/${latest.mangaId}/${latest.chapterNumber}`}

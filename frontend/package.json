@@ -12,6 +12,8 @@
     "@aws-sdk/client-s3": "^3.1110.0",
     "@supabase/supabase-js": "^2.109.0",
     "@tanstack/react-virtual": "^3.14.8",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "blurhash": "^2.0.5",
     "clsx": "^2.1.1",
     "google-auth-library": "^10.9.1",

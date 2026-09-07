@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { MangaCard } from "@/components/MangaCard";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
+import { CategorySearchBar } from "@/components/CategorySearchBar";
 import { AdSlot } from "@/components/AdSlot";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Frown } from "lucide-react";
 import { getCachedMangaList } from "@/lib/cache";
 import { getLocalCatalogue, type CatalogueManga } from "@/lib/local-catalogue";
 
@@ -14,8 +15,9 @@ export const metadata = {
   alternates: { canonical: "/discover" },
 };
 
-export default async function Discover({ searchParams }: { searchParams: Promise<{ genre?: string; page?: string; included?: string; excluded?: string; sort?: string }> }) {
+export default async function Discover({ searchParams }: { searchParams: Promise<{ q?: string; genre?: string; page?: string; included?: string; excluded?: string; sort?: string }> }) {
   const resolvedParams = await searchParams;
+  const searchQuery = resolvedParams.q?.trim() || "";
   const currentGenre = resolvedParams.genre || "All";
   const pageNum = parseInt(resolvedParams.page || "1", 10);
   const included = resolvedParams.included;
@@ -27,6 +29,7 @@ export default async function Discover({ searchParams }: { searchParams: Promise
 
   try {
     const result = await getCachedMangaList({
+      q: searchQuery || undefined,
       genre: currentGenre !== "All" && !included ? currentGenre : undefined,
       page: pageNum,
       limit,
@@ -40,8 +43,13 @@ export default async function Discover({ searchParams }: { searchParams: Promise
   }
   if (!mangas.length) {
     const local = await getLocalCatalogue();
-    const genreMatches = currentGenre === "All" ? local : local.filter((manga) => manga.genres.some((genre) => genre.toLowerCase() === currentGenre.toLowerCase()));
-    const filtered = genreMatches.length ? genreMatches : local;
+    let filtered = local;
+    if (searchQuery) {
+      filtered = filtered.filter((m) => m.title.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    if (currentGenre !== "All") {
+      filtered = filtered.filter((manga) => manga.genres.some((genre) => genre.toLowerCase() === currentGenre.toLowerCase()));
+    }
     totalCount = filtered.length;
     mangas = filtered.slice((pageNum - 1) * limit, pageNum * limit);
   }
@@ -70,6 +78,7 @@ export default async function Discover({ searchParams }: { searchParams: Promise
 
   const buildUrl = (targetPage: number, genre: string) => {
     const params = new URLSearchParams();
+    if (searchQuery) params.set("q", searchQuery);
     if (genre !== "All") params.set("genre", genre);
     if (targetPage > 1) params.set("page", targetPage.toString());
     if (sort) params.set("sort", sort);
@@ -84,11 +93,18 @@ export default async function Discover({ searchParams }: { searchParams: Promise
   return (
     <div className="pb-28 md:pb-8">
       <div className="mx-auto max-w-7xl px-4 pt-4 md:px-8 md:pt-8">
-        <h1 className="text-2xl font-black md:text-3xl">{isLatest ? "Latest Releases" : (currentGenre !== "All" ? `${currentGenre} Manga` : "Discover Manga")}</h1>
-        <p className="mt-1 text-sm text-[#A1A1AA]">{isLatest ? "Manga with recently updated chapters." : "Handpicked worlds waiting inside the Den."}</p>
+        <h1 className="text-2xl font-black md:text-3xl">
+          {searchQuery ? `Search results for "${searchQuery}"` : isLatest ? "Latest Releases" : (currentGenre !== "All" ? `${currentGenre} Manga` : "Discover Manga")}
+        </h1>
+        <p className="mt-1 text-sm text-[#A1A1AA]">
+          {searchQuery ? `Explore matching series and genres.` : isLatest ? "Manga with recently updated chapters." : "Handpicked worlds waiting inside the Den."}
+        </p>
+
+        {/* Search Bar */}
+        <CategorySearchBar />
 
         {/* Genre Filters */}
-        <div className="no-scrollbar mt-5 flex gap-2 overflow-x-auto pb-1 items-center">
+        <div className="no-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1 items-center">
           <AdvancedFilterPanel />
           <div className="h-6 w-px bg-white/10 mx-1 shrink-0" />
           
@@ -111,13 +127,23 @@ export default async function Discover({ searchParams }: { searchParams: Promise
         </div>
 
         {/* Manga Cards Grid */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
-          {uiMangas.map((m) => (
-            <MangaCard key={m.slug} manga={m} showChapter />
-          ))}
-        </div>
-
-        <div className="mt-8"><AdSlot placement="discover-grid" /></div>
+        {uiMangas.length > 0 ? (
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+            {uiMangas.map((m) => (
+              <MangaCard key={m.slug} manga={m} showChapter />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-16 flex flex-col items-center justify-center text-center">
+            <div className="grid h-16 w-16 place-items-center rounded-full bg-white/5 text-[#A1A1AA]">
+              <Frown className="h-8 w-8" />
+            </div>
+            <h3 className="mt-4 text-base font-bold text-white">No manga found</h3>
+            <p className="mt-1 max-w-sm text-xs text-[#A1A1AA]">
+              No series match your search filters. Try clearing or searching another title.
+            </p>
+          </div>
+        )}
 
         {/* Pagination Controls */}
         <div className="mt-10 flex items-center justify-between border-t border-white/10 pt-6">

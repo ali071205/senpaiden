@@ -48,7 +48,6 @@ export default function LibraryPage() {
 
   return (
     <div className="pb-28 md:pb-8">
-
       <div className="mx-auto max-w-7xl px-4 pt-4 md:px-8 md:pt-8">
         <div className="flex items-center justify-between">
           <div>
@@ -86,12 +85,23 @@ export default function LibraryPage() {
           </div>
         ) : (
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
-            {library.map((manga) => (
-              <MangaCard key={manga.slug} manga={manga} showChapter />
+            {library.map((manga, index) => (
+              <div key={manga.slug} className="contents">
+                <MangaCard manga={manga} showChapter />
+                {(index + 1) % 6 === 0 && index < library.length - 1 && (
+                  <div className="col-span-full my-3">
+                    <AdSlot placement="library-bottom" />
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
-        {isLoaded && <div className="mt-10 border-t border-white/5 pt-8"><AdSlot placement="library-bottom" /></div>}
+        {isLoaded && library.length > 0 && (
+          <div className="mt-10 border-t border-white/5 pt-8">
+            <AdSlot placement="library-bottom" />
+          </div>
+        )}
       </div>
     </div>
   );

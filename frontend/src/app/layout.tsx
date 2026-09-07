@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { SiteLayout } from "@/components/SiteLayout";
 import { CookieConsent } from "@/components/CookieConsent";
@@ -44,9 +46,10 @@ export const metadata: Metadata = {
   },
   verification: {
     google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "google7939b298ac53f907",
-    other: process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION
-      ? { "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION }
-      : undefined,
+    other: {
+      "mylead-verification": "bd6e2f03e36f35ff606ee4ae41cb79ea",
+      ...(process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION ? { "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION } : {}),
+    },
   },
   category: "entertainment",
 };
@@ -89,6 +92,7 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <meta name="referrer" content="no-referrer" />
+        <meta name="mylead-verification" content="bd6e2f03e36f35ff606ee4ae41cb79ea" />
       </head>
       <body className="antialiased min-h-screen flex flex-col" suppressHydrationWarning>
         {GA_ID && (
@@ -122,6 +126,8 @@ export default function RootLayout({
         </SiteLayout>
         <CookieConsent />
         <MonetizationProvider />
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

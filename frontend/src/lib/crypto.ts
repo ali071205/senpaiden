@@ -3,7 +3,10 @@ import crypto from 'crypto';
 const MAGIC_HEADER = Buffer.from('SEN1');
 
 function getSecretKey(): Buffer {
-  const secret = process.env.STORAGE_ENCRYPTION_SECRET || 'default_senpaiden_secret_key_32bytes!!';
+  const secret = process.env.STORAGE_ENCRYPTION_SECRET;
+  if (!secret) {
+    throw new Error('STORAGE_ENCRYPTION_SECRET environment variable is required for image decryption.');
+  }
   return crypto.createHash('sha256').update(secret).digest();
 }
 

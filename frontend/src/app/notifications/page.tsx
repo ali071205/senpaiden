@@ -67,11 +67,13 @@ export default function NotificationsPage() {
       <section className="mt-8 overflow-hidden rounded-3xl border border-white/10 bg-[#11131A]">
         {visibleNotifications.length ? visibleNotifications.map((item) => {
           const Icon = ICONS[item.kind];
-          return <button key={item.id} onClick={() => openNotification(item)} className="group flex w-full items-start gap-4 border-b border-white/5 p-5 text-left transition last:border-b-0 hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60 md:p-6">
-            <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${item.unread ? "bg-primary/15 text-primary" : "bg-white/5 text-zinc-500"}`}><Icon className="h-5 w-5" /></span>
-            <span className="min-w-0 flex-1"><span className="flex items-center gap-2"><strong className="truncate text-sm text-white md:text-base">{item.title}</strong>{item.unread && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}</span><span className="mt-1 block text-sm leading-6 text-zinc-400">{item.detail}</span></span>
-            <span className="flex shrink-0 items-center gap-2 text-[11px] text-zinc-600"><span className="hidden sm:inline">{item.time}</span><ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:text-zinc-300" /></span>
-          </button>;
+          return (
+            <button key={item.id} onClick={() => openNotification(item)} className="group flex w-full items-start gap-4 border-b border-white/5 p-5 text-left transition last:border-b-0 hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60 md:p-6">
+              <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${item.unread ? "bg-primary/15 text-primary" : "bg-white/5 text-zinc-500"}`}><Icon className="h-5 w-5" /></span>
+              <span className="min-w-0 flex-1"><span className="flex items-center gap-2"><strong className="truncate text-sm text-white md:text-base">{item.title}</strong>{item.unread && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}</span><span className="mt-1 block text-sm leading-6 text-zinc-400">{item.detail}</span></span>
+              <span className="flex shrink-0 items-center gap-2 text-[11px] text-zinc-600"><span className="hidden sm:inline">{item.time}</span><ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:text-zinc-300" /></span>
+            </button>
+          );
         }) : <div className="px-6 py-16 text-center"><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-emerald-400/10 text-emerald-400"><CheckCheck className="h-6 w-6" /></span><h2 className="mt-4 text-lg font-black text-white">You&apos;re all caught up</h2><p className="mt-2 text-sm text-zinc-500">New manga updates will appear here.</p></div>}
       </section>
       <div className="mt-8 border-t border-white/5 pt-8"><AdSlot placement="notifications-bottom" /></div>

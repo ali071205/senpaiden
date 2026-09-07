@@ -5,7 +5,9 @@ import { HomeLibraryRow } from "@/components/HomeLibraryRow";
 import { PersonalizedFeedRow } from "@/components/PersonalizedFeedRow";
 import { ContinueReadingBubble } from "@/components/ContinueReadingBubble";
 import { AdSlot } from "@/components/AdSlot";
-import { Frown, Play, ChevronRight } from "lucide-react";
+import { VideoAdUnit } from "@/components/VideoAdUnit";
+import { FeaturedHeroCarousel } from "@/components/FeaturedHeroCarousel";
+import { Frown, ChevronRight } from "lucide-react";
 import { getLocalCatalogue, type CatalogueManga } from "@/lib/local-catalogue";
 
 // Server Component fetching live data from Cloudflare Worker / Next API
@@ -22,7 +24,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
     const result = await getCachedMangaList({
       q: searchQuery || undefined,
       page: 1,
-      limit: 20,
+      limit: 24,
     });
     if (result.data && result.data.length > 0) {
       mangas = result.data as CatalogueManga[];
@@ -32,7 +34,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
   }
   if (!mangas.length) {
     const local = await getLocalCatalogue();
-    mangas = (searchQuery ? local.filter((manga) => manga.title.toLowerCase().includes(searchQuery.toLowerCase())) : local).slice(0, 20);
+    mangas = (searchQuery ? local.filter((manga) => manga.title.toLowerCase().includes(searchQuery.toLowerCase())) : local).slice(0, 24);
   }
 
   // Map API data to the UI format temporarily if it's missing fields
@@ -56,9 +58,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
     coverHue2: 300,
   }));
 
-  const featured = uiMangas[0] || {
-    slug: "fallback", title: "Welcome to Senpai Den", altTitle: "", description: "Loading mangas...", genres: [], latestChapter: 1, status: "Ongoing", coverHue: 250, coverHue2: 300
-  };
+  const featuredItems = uiMangas.slice(0, 6);
   const trending = uiMangas.slice(0, 8);
   const updated = uiMangas.slice(8, 16);
   if (searchQuery) {
@@ -105,51 +105,8 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
   return (
     <div className="pb-28 md:pb-8">
 
-      {/* Hero */}
-      <section className="relative">
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-10 opacity-40"
-          style={{ background: "#08080C" }}
-        />
-        <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-b from-transparent via-[#08080C]/70 to-[#08080C]" />
-
-        <div className="mx-auto flex max-w-7xl gap-6 px-4 pb-10 pt-6 md:px-8 md:pb-16 md:pt-10">
-          <div
-            className="hidden aspect-[2/3] w-56 shrink-0 rounded-2xl border border-white/10 shadow-2xl md:block bg-[#16161F] overflow-hidden relative"
-          >
-            {featured.cover_url && (
-              <img src={featured.cover_url} alt={featured.title} referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover" />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="rounded-md sd-gradient px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-                Featured
-              </span>
-              <span className="text-[11px] uppercase tracking-widest text-[#A1A1AA]">
-                {featured.genres.slice(0, 3).join(" · ")}
-              </span>
-            </div>
-            <h1 className="text-3xl font-black leading-tight md:text-5xl">{featured.title}</h1>
-            <p className="mt-1 text-sm text-[#A1A1AA]">{featured.altTitle}</p>
-            <p className="mt-4 line-clamp-3 max-w-xl text-sm leading-relaxed text-[#A1A1AA] md:text-base">
-              {featured.description}
-            </p>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <Link
-                href={`/manga/${featured.slug}`}
-                className="group inline-flex items-center gap-2 rounded-xl sd-gradient px-5 py-3 text-sm font-bold text-white shadow-[0_10px_30px_-10px_rgba(139,92,246,0.7)] transition-transform active:scale-[0.97]"
-              >
-                <Play className="h-4 w-4 fill-white" />
-                Start Reading
-              </Link>
-              <AddToLibraryButton manga={featured} />
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Modern Swipeable Hero Carousel */}
+      <FeaturedHeroCarousel items={featuredItems} />
 
       {/* Quick Genres */}
       <section className="mx-auto mt-6 max-w-7xl px-4 md:px-8">
@@ -188,6 +145,11 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
             <MangaCard key={m.slug} manga={m} showChapter />
           ))}
         </div>
+      </section>
+
+      {/* High-CPM Video Ad Unit */}
+      <section className="mx-auto mt-8 max-w-7xl px-4 md:px-8">
+        <VideoAdUnit />
       </section>
 
       {/* Recently Updated */}

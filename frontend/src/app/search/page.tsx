@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { MangaCard } from "@/components/MangaCard";
 import { Search as SearchIcon, X, Loader2, Frown } from "lucide-react";
 import type { Manga } from "@/lib/manga-data";
+import { AdSlot } from "@/components/AdSlot";
 
 function SearchContent() {
   const searchParams = useSearchParams();
@@ -132,6 +133,9 @@ function SearchContent() {
               {results.map((manga) => (
                 <MangaCard key={manga.slug} manga={manga} showChapter />
               ))}
+            </div>
+            <div className="mt-8 border-t border-white/5 pt-8">
+              <AdSlot placement="discover-bottom" />
             </div>
           </div>
         ) : (

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Bookmark, BookOpen, Check, CheckCircle2, Copy, Crown, Gamepad2, Home, Lock, LogIn, LogOut, Mail, Save, Share2, ShieldCheck, Shirt, Sparkles, Ticket, UserPlus, UserRound, Users, X } from "lucide-react";
-import { claimReaderReward, creditSuccessfulReferral, FIXED_EXP_AFTER_LEVEL, FIXED_EXP_FROM_LEVEL, getLevelProgress, getMangaExpAward, getReaderProgression, getReferralExpAward, hasActivePremium, LEVEL_EXP_GROWTH_PERCENT, PREMIUM_EXP_MULTIPLIER, PROGRESSION_UPDATED_EVENT, READER_REWARDS, type ReaderProgression, type RewardId } from "@/lib/reader-progression";
+import { Bookmark, Check, Home, LogIn, LogOut, Mail, Save, UserRound, X, Ticket } from "lucide-react";
+import { getReaderProgression, PROGRESSION_UPDATED_EVENT, type ReaderProgression } from "@/lib/reader-progression";
 import { endSession, getRegisteredAccounts, getStoredAccount, isSignedIn, rememberAccount, startSession, type StoredAccount } from "@/lib/auth-storage";
 import { addNotification } from "@/lib/notifications";
 
@@ -25,9 +25,6 @@ export default function AccountPage() {
   const [saved, setSaved] = useState(false);
   const [progression, setProgression] = useState<ReaderProgression>({ totalExp: 0, readMangaIds: [], proPlusRewardClaimed: false, claimedRewardIds: [], creditedReferralIds: [], creditedReferralEmails: [], referralCode: "" });
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
-  const [premiumActive, setPremiumActive] = useState(false);
-  const [referralMessage, setReferralMessage] = useState("");
-  const [claimMessage, setClaimMessage] = useState("");
   const [showReferralPrompt, setShowReferralPrompt] = useState(false);
   const [showReferralInput, setShowReferralInput] = useState(false);
   const [signupReferralCode, setSignupReferralCode] = useState("");
@@ -47,25 +44,12 @@ export default function AccountPage() {
   }, []);
 
   useEffect(() => {
-    const syncPremium = () => setPremiumActive(hasActivePremium());
-    syncPremium();
-    window.addEventListener("senpai-premium-updated", syncPremium);
-    window.addEventListener("storage", syncPremium);
-    return () => {
-      window.removeEventListener("senpai-premium-updated", syncPremium);
-      window.removeEventListener("storage", syncPremium);
-    };
-  }, []);
-
-  useEffect(() => {
     const syncProgression = () => setProgression(getReaderProgression());
     syncProgression();
     window.addEventListener(PROGRESSION_UPDATED_EVENT, syncProgression);
     return () => window.removeEventListener(PROGRESSION_UPDATED_EVENT, syncProgression);
   }, []);
 
-  const levelProgress = getLevelProgress(progression.totalExp);
-  const level = levelProgress.level;
   const referralShareCode = account.referralCode || progression.referralCode;
 
   useEffect(() => {
@@ -103,12 +87,6 @@ export default function AccountPage() {
     setReferralMessage("Referral link copied.");
   };
 
-  const claimReward = (rewardId: RewardId) => {
-    const result = claimReaderReward(rewardId);
-    setClaimMessage(result.ok ? `${result.reward.title} claim saved. The fulfillment team can now verify it.` : result.error);
-    if (result.ok) setProgression(result.progression);
-  };
-
   const updateReferralPrompt = (status: StoredAccount["referralPrompt"]) => {
     const updated = { ...account, referralCode: referralShareCode, referralPrompt: status, pendingReferralCode: "" };
     setAccount(updated);
@@ -142,8 +120,6 @@ export default function AccountPage() {
     updateReferralPrompt("completed");
   };
 
-  const rewardIcons: Record<RewardId, typeof Crown> = { "pro-plus": Crown, tshirt: Shirt, "manga-volume": BookOpen, ps5: Gamepad2, "community-leader": Users };
-
   if (authenticated === null) return null;
 
   if (!authenticated) {
@@ -166,43 +142,14 @@ export default function AccountPage() {
               <UserRound className="h-10 w-10 text-zinc-300" />
             </div>
             <h2 className="mt-3 truncate text-xl font-black text-white">{account.displayName || "Senpai"}</h2>
-            <p className="text-xs text-zinc-500">Level {level} reader</p>
-            <div className="mt-5 grid grid-cols-2 gap-2">
+            <p className="text-xs text-zinc-500">SenpaiDen Reader</p>
+            <div className="mt-5 grid grid-cols-1 gap-2">
               <div className="rounded-2xl bg-white/5 p-3"><Bookmark className="mx-auto h-4 w-4 text-primary" /><p className="mt-1 text-lg font-black text-white">{progression.readMangaIds.length}</p><p className="text-[10px] text-zinc-500">Manga read</p></div>
-              <div className="rounded-2xl bg-white/5 p-3"><ShieldCheck className="mx-auto h-4 w-4 text-[#FFD700]" /><p className="mt-1 text-lg font-black text-white">{level}</p><p className="text-[10px] text-zinc-500">Level</p></div>
             </div>
           </div>
         </aside>
 
         <div className="grid gap-6">
-        <section className="relative overflow-hidden rounded-3xl border border-yellow-300/20 bg-[#15130E] p-5 md:p-7">
-          <div className="absolute -right-12 -top-16 h-48 w-48 rounded-full bg-yellow-300/10 blur-3xl" />
-          <div className="relative flex flex-wrap items-start justify-between gap-4"><div><p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-yellow-300"><Sparkles className="h-4 w-4" /> Reader rank</p><h2 className="mt-2 text-2xl font-black text-white">Level {level}</h2><p className="mt-1 text-sm text-zinc-400">Read a new manga to earn {getMangaExpAward()} EXP.{premiumActive && <span className="ml-1 font-bold text-yellow-300">Premium {PREMIUM_EXP_MULTIPLIER}× boost active.</span>}</p><p className="mt-1 text-xs text-zinc-600">Targets grow {LEVEL_EXP_GROWTH_PERCENT}% per level; from Level {FIXED_EXP_FROM_LEVEL}, every next level needs {FIXED_EXP_AFTER_LEVEL} EXP.</p></div><div className="rounded-2xl border border-yellow-300/20 bg-yellow-300/10 px-4 py-3 text-right"><p className="text-xl font-black text-yellow-300">{levelProgress.currentExp}/{levelProgress.requiredExp}</p><p className="text-[10px] uppercase tracking-wider text-zinc-500">EXP to next level</p></div></div>
-          <div className="relative mt-5 h-3 overflow-hidden rounded-full bg-black/40" role="progressbar" aria-label="Level progress" aria-valuemin={0} aria-valuemax={levelProgress.requiredExp} aria-valuenow={levelProgress.currentExp}><div className="h-full rounded-full bg-gradient-to-r from-primary via-orange-400 to-yellow-300 transition-[width] duration-500" style={{ width: `${levelProgress.progressPercent}%` }} /></div>
-        </section>
-
-        <section className="rounded-3xl border border-white/10 bg-[#11131A] p-5 md:p-7">
-          <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-400/10 text-violet-300"><Crown className="h-5 w-5" /></span><div><h2 className="font-black text-white">Reward road</h2><p className="text-xs text-zinc-500">Every milestone is configurable from the environment file.</p></div></div>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            {READER_REWARDS.map((reward) => {
-              const Icon = rewardIcons[reward.id];
-              const unlocked = level >= reward.level;
-              const claimed = reward.id === "pro-plus" ? progression.proPlusRewardClaimed : progression.claimedRewardIds.includes(reward.id);
-              return <article key={reward.id} className={`rounded-2xl border p-4 ${unlocked ? "border-yellow-300/25 bg-yellow-300/[0.055]" : "border-white/5 bg-black/15"}`}>
-                <div className="flex items-start gap-3"><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${unlocked ? "bg-yellow-300/10 text-yellow-300" : "bg-white/5 text-zinc-600"}`}><Icon className="h-5 w-5" /></span><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-black text-white">{reward.title}</h3><span className="shrink-0 text-[10px] font-black text-zinc-500">LV. {reward.level}</span></div><p className="mt-1 text-xs leading-5 text-zinc-500">{reward.description}</p></div></div>
-                <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3"><span className={`flex items-center gap-1.5 text-xs font-bold ${claimed ? "text-emerald-400" : unlocked ? "text-yellow-300" : "text-zinc-600"}`}>{claimed ? <CheckCircle2 className="h-3.5 w-3.5" /> : unlocked ? <Sparkles className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}{claimed ? (reward.physical ? "Claim requested" : "Active") : unlocked ? "Unlocked" : `${reward.level - level} levels left`}</span>{unlocked && !claimed && reward.id !== "pro-plus" && <button onClick={() => claimReward(reward.id)} className="min-h-9 rounded-xl border border-yellow-300/20 bg-yellow-300/10 px-3 text-xs font-black text-yellow-300 transition hover:bg-yellow-300/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300/60">{reward.physical ? "Request reward" : "Claim"}</button>}</div>
-              </article>;
-            })}
-          </div>
-          <p aria-live="polite" className="mt-3 min-h-5 text-xs text-emerald-400">{claimMessage}</p>
-        </section>
-
-        <section className="rounded-3xl border border-cyan-300/15 bg-[#0E1518] p-5 md:p-7">
-          <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-cyan-300/10 text-cyan-300"><UserPlus className="h-5 w-5" /></span><div><h2 className="font-black text-white">Referral EXP</h2><p className="text-xs text-zinc-500">Earn {getReferralExpAward()} EXP for every unique referred email.{premiumActive && <span className="ml-1 font-bold text-yellow-300">Premium {PREMIUM_EXP_MULTIPLIER}× boost active.</span>}</p></div></div>
-          <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4"><label className="text-xs font-bold text-zinc-400" htmlFor="referral-code">Your referral code</label><div className="mt-2 flex flex-col gap-2 sm:flex-row"><input id="referral-code" readOnly value={referralShareCode} className="h-12 min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/20 px-4 font-mono text-sm font-bold text-cyan-300 outline-none" /><button onClick={copyInviteLink} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-black text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"><Copy className="h-4 w-4" /> Copy link</button><button onClick={shareReferral} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-5 text-xs font-black text-[#061013] transition hover:bg-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"><Share2 className="h-4 w-4" /> Share invite</button></div></div>
-          <p aria-live="polite" className="mt-3 min-h-5 text-xs text-cyan-300">{referralMessage}</p><p className="text-[11px] leading-5 text-zinc-600">Friends can open your link and enter this code during sign up. You earn EXP after a successful unique signup.</p>
-        </section>
-
         <form onSubmit={saveAccount} className="rounded-3xl border border-white/10 bg-[#11131A] p-5 md:p-7">
           <div className="flex items-center gap-3 border-b border-white/5 pb-5">
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary"><UserRound className="h-5 w-5" /></div>

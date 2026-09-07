@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import { resolveMangaRecord } from '@/lib/cache';
 
 export async function GET(
   req: NextRequest,
@@ -11,36 +12,36 @@ export async function GET(
       return NextResponse.json({ error: 'Supabase environment variables not configured.' }, { status: 500 });
     }
 
-    const { id: mangaId, chapter: chapterNumStr } = await params;
+    const { id: rawMangaId, chapter: chapterNumStr } = await params;
     const chapterNumber = parseFloat(chapterNumStr);
 
-    // Fetch manga details
-    const { data: manga, error: mangaErr } = await supabase
-      .from('manga')
-      .select('*')
-      .eq('id', mangaId)
-      .single();
-
-    if (mangaErr || !manga) {
+    // Fetch manga details via universal resolver (UUID, slug, title, or source_id)
+    const manga = await resolveMangaRecord(rawMangaId, supabase);
+    if (!manga) {
       return NextResponse.json({ error: 'Manga not found' }, { status: 404 });
     }
+    const mangaId = manga.id;
 
-    // Fetch all chapters for navigation
+    // Fetch all chapters for navigation (up to 5,000 for long-running series)
     const { data: chapters } = await supabase
       .from('chapters')
       .select('id, chapter_number, title, job_status, language, scanlation_group')
       .eq('manga_id', mangaId)
-      .order('chapter_number', { ascending: true });
+      .order('chapter_number', { ascending: true })
+      .limit(5000);
 
-    // Fetch current target chapter
-    let { data: chapter } = await supabase
+    // Fetch current target chapter (prioritizing English and READY status)
+    const { data: candidateChapters } = await supabase
       .from('chapters')
       .select('*')
       .eq('manga_id', mangaId)
       .eq('chapter_number', chapterNumber)
-      .maybeSingle();
+      .limit(10);
 
-    // If chapter record is missing or failed, create a placeholder in memory/DB
+    // Pick English or first ready candidate
+    let chapter = candidateChapters?.find((c) => c.language === 'en') || candidateChapters?.[0];
+
+    // If chapter record is missing or failed, create a placeholder in memory/DB for dynamic scraping
     if (!chapter) {
       const newChapterId = crypto.randomUUID();
       const newCh = {
@@ -68,11 +69,11 @@ export async function GET(
       .eq('chapter_id', chapter.id)
       .order('page_number', { ascending: true });
 
-    // Fallback: If pages are missing or contain un-hosted relative keys (manga/..., gdrive/...), resolve live MangaDex pages
-    const hasInvalidKeys = pages && pages.length > 0 && pages.some(p => 
+    // Fallback: If pages are missing or empty in DB, resolve live MangaDex or MangaPill pages
+    const hasInvalidKeys = pages && pages.length > 0 && pages.every(p => 
       !Array.isArray(p.r2_keys) || 
       p.r2_keys.length === 0 || 
-      p.r2_keys.some((k: string) => !k.startsWith('http://') && !k.startsWith('https://'))
+      p.r2_keys.every((k: string) => !k || k.trim() === '')
     );
 
     if (!pages || pages.length === 0 || hasInvalidKeys) {
@@ -187,10 +188,10 @@ export async function GET(
       }
     }
 
-    // Sanitize pages: never return broken gdrive or un-hosted local keys to client
+    // Sanitize pages: filter out records with no keys
     const sanitizedPages = (pages || []).filter(p => {
       if (!Array.isArray(p.r2_keys) || p.r2_keys.length === 0) return false;
-      return p.r2_keys.some((k: string) => k.startsWith('http://') || k.startsWith('https://'));
+      return p.r2_keys.some((k: string) => typeof k === 'string' && k.length > 0);
     });
 
     const available_languages = Array.from(
