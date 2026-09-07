@@ -79,9 +79,25 @@ export function MangaDetailClient({
   const [newReviewName, setNewReviewName] = useState("");
   const [showReviewForm, setShowReviewForm] = useState(false);
 
-  const genres = manga.genres && manga.genres.length > 0 ? manga.genres : ["Action", "Fantasy"];
-  const startChapter = chapters.length > 0 ? Math.min(...chapters.map(c => c.chapter_number)) : 1;
-  const latestChapter = chapters.length > 0 ? Math.max(...chapters.map(c => c.chapter_number)) : 1;
+  const startChapter = useMemo(() => {
+    if (!chapters || chapters.length === 0) return 1;
+    let min = Infinity;
+    for (const c of chapters) {
+      const num = Number(c.chapter_number);
+      if (!isNaN(num) && num < min) min = num;
+    }
+    return min === Infinity ? 1 : min;
+  }, [chapters]);
+
+  const latestChapter = useMemo(() => {
+    if (!chapters || chapters.length === 0) return 1;
+    let max = -Infinity;
+    for (const c of chapters) {
+      const num = Number(c.chapter_number);
+      if (!isNaN(num) && num > max) max = num;
+    }
+    return max === -Infinity ? 1 : max;
+  }, [chapters]);
 
   useEffect(() => {
     const syncUnlocked = () => {
@@ -306,14 +322,26 @@ export function MangaDetailClient({
             </div>
 
             <div className="flex items-center justify-center md:justify-start gap-3 flex-wrap">
-              <button onClick={() => router.push(`/manga/${manga.id}/${startChapter}`)}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl font-black text-white transition-all hover:scale-105 bg-primary shadow-[0_0_24px_rgba(255,46,46,0.4)] font-rajdhani text-[15px]">
-                <Play size={17} className="fill-white" /> Start Reading
-              </button>
-              <button onClick={() => router.push(`/manga/${manga.id}/${latestChapter}`)}
-                className="hidden sm:flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all hover:bg-white/10 bg-white/5 border border-white/10">
-                Latest Chapter
-              </button>
+              {chapters.length > 0 ? (
+                <>
+                  <Link 
+                    href={`/manga/${manga.id}/${startChapter}`}
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl font-black text-white transition-all hover:scale-105 bg-primary shadow-[0_0_24px_rgba(255,46,46,0.4)] font-rajdhani text-[15px]"
+                  >
+                    <Play size={17} className="fill-white" /> Start Reading
+                  </Link>
+                  <Link 
+                    href={`/manga/${manga.id}/${latestChapter}`}
+                    className="hidden sm:flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all hover:bg-white/10 bg-white/5 border border-white/10 text-white"
+                  >
+                    Latest Chapter
+                  </Link>
+                </>
+              ) : (
+                <span className="px-5 py-3 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-zinc-400">
+                  No Chapters Available
+                </span>
+              )}
               <button onClick={toggleSave}
                 className={`w-10 md:w-12 h-10 md:h-12 rounded-xl flex items-center justify-center transition-all border ${saved ? 'bg-primary/15 border-primary/40' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
                 <Bookmark size={17} className={saved ? "fill-red-500 text-red-500" : ""} />

@@ -45,11 +45,11 @@ export function StickyAnchorAd() {
 
   return (
     <div
-      className={`fixed z-40 transition-all duration-300 left-0 right-0 md:left-[260px] md:right-0 w-full md:w-auto md:max-w-3xl md:mx-auto px-3 ${
+      className={`fixed z-40 transition-all duration-300 left-0 right-0 md:left-[260px] md:right-0 w-full md:w-auto md:max-w-3xl md:mx-auto px-3 pointer-events-none ${
         collapsed ? "bottom-16 md:bottom-2" : "bottom-16 md:bottom-2"
       }`}
     >
-      <div className="mx-auto rounded-2xl border border-white/10 bg-[#0F1117]/95 shadow-[0_-8px_30px_rgba(0,0,0,0.7)] backdrop-blur-xl p-2 relative overflow-hidden">
+      <div className="pointer-events-auto mx-auto rounded-2xl border border-white/10 bg-[#0F1117]/95 shadow-[0_-8px_30px_rgba(0,0,0,0.7)] backdrop-blur-xl p-2 relative overflow-hidden">
         {/* Top Header Bar */}
         <div className="flex items-center justify-between px-2 pb-1 text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500">
           <span className="flex items-center gap-1">

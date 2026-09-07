@@ -1,11 +1,14 @@
 "use client";
 
+import { ADS_ENABLED } from "./monetization";
+
 export const FASTPASS_UPDATED_EVENT = "senpai_fastpass_updated";
 
 /**
  * Checks if a chapter is considered "FastPass Early Access" (the top 3 latest chapters for series with > 3 chapters)
  */
 export function isChapterFastPass(chapterNumber: number, latestChapter: number, totalChapters: number): boolean {
+  if (!ADS_ENABLED) return false;
   if (totalChapters <= 3) return false;
   return chapterNumber > latestChapter - 3;
 }

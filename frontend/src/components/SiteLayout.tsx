@@ -56,6 +56,21 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
   const [signedIn, setSignedIn] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [readerLevel, setReaderLevel] = useState(1);
+  const [theme, setTheme] = useState<"dark" | "light" | "system">("dark");
+
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem("senpai_theme") as "dark" | "light" | "system" | null;
+      if (savedTheme) setTheme(savedTheme);
+    } catch {}
+  }, []);
+
+  const handleThemeChange = (nextTheme: "dark" | "light" | "system") => {
+    setTheme(nextTheme);
+    try {
+      localStorage.setItem("senpai_theme", nextTheme);
+    } catch {}
+  };
 
   const isReader = pathname.match(/^\/manga\/[^/]+\/[^/]+(\/.*)?$/);
 
@@ -221,9 +236,27 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
                 © 2026 SenpaiDen<br />All rights reserved.
               </p>
               <div className="flex items-center gap-1 bg-white/5 rounded-full p-1 w-fit">
-                 <button className="p-1.5 rounded-full bg-white/10 text-white shadow-sm"><Moon size={12} /></button>
-                 <button className="p-1.5 rounded-full text-zinc-500 hover:text-white"><Sun size={12} /></button>
-                 <button className="p-1.5 rounded-full text-zinc-500 hover:text-white"><Laptop size={12} /></button>
+                 <button
+                   onClick={() => handleThemeChange("dark")}
+                   title="Dark Theme"
+                   className={`p-1.5 rounded-full transition-colors ${theme === "dark" ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"}`}
+                 >
+                   <Moon size={12} />
+                 </button>
+                 <button
+                   onClick={() => handleThemeChange("light")}
+                   title="Light Theme"
+                   className={`p-1.5 rounded-full transition-colors ${theme === "light" ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"}`}
+                 >
+                   <Sun size={12} />
+                 </button>
+                 <button
+                   onClick={() => handleThemeChange("system")}
+                   title="System Theme"
+                   className={`p-1.5 rounded-full transition-colors ${theme === "system" ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"}`}
+                 >
+                   <Laptop size={12} />
+                 </button>
                  <div className="w-px h-3 bg-white/10 mx-1" />
                  <Link href="/admin" className="p-1.5 rounded-full text-zinc-500 hover:text-primary transition-colors">
                    <Shield size={12} />

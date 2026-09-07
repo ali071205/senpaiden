@@ -122,7 +122,7 @@ export function FeaturedHeroCarousel({ items }: FeaturedHeroCarouselProps) {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <Link
-                href={`/manga/${activeManga.slug}`}
+                href={`/manga/${activeManga.slug}/${activeManga.latestChapter || 1}`}
                 className="inline-flex items-center gap-1.5 rounded-xl sd-gradient px-4 py-2 text-xs sm:text-sm font-black text-white shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all"
               >
                 <Play className="h-3.5 w-3.5 fill-white" />
