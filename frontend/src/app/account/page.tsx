@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bookmark, Check, Home, LogIn, LogOut, Mail, Save, UserRound, X, Ticket } from "lucide-react";
-import { creditSuccessfulReferral, getReaderProgression, PROGRESSION_UPDATED_EVENT, type ReaderProgression } from "@/lib/reader-progression";
+import { getReaderProgression, creditSuccessfulReferral, PROGRESSION_UPDATED_EVENT, type ReaderProgression } from "@/lib/reader-progression";
 import { endSession, getRegisteredAccounts, getStoredAccount, isSignedIn, rememberAccount, startSession, type StoredAccount } from "@/lib/auth-storage";
 import { addNotification } from "@/lib/notifications";
 

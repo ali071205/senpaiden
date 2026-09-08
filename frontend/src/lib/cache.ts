@@ -61,12 +61,14 @@ export async function getCachedMangaList(params: {
   const offset = (page - 1) * limit;
   let query: any = supabase
     .from('manga')
-    .select('id, title, cover_url, status, genres, description, updated_at', { count: 'exact' })
-    .neq('title', 'm')
-    .not('title', 'is', null);
+    .not('title', 'is', null)
+    .not('cover_url', 'is', null);
 
-  // Sort by updated_at DESC when sort === 'updated' or by default
-  query = query.order('updated_at', { ascending: false });
+  if (sort === 'views') {
+    query = query.order('view_count', { ascending: false, nullsFirst: false });
+  } else {
+    query = query.order('updated_at', { ascending: false });
+  }
   query = query.range(offset, offset + limit - 1);
 
   if (q && q.trim() !== '') {
@@ -112,7 +114,7 @@ export async function getCachedMangaList(params: {
 
       enrichedData = enrichedData.map((m: any) => ({
         ...m,
-        latest_chapter_number: maxMap.get(m.id) || 1,
+        latest_chapter_number: maxMap.get(m.id) || m.title_i18n?.latest_chapter || m.title_i18n?.total_chapters || 1,
       }));
     } catch {}
   }
@@ -160,7 +162,7 @@ export async function getCachedCatalogVectors() {
   try {
     const { data: initialItems, error } = await supabase
       .from('manga')
-      .select('id, title, cover_url, status, genres')
+      .select('id, title, cover_url, status, genres, title_i18n')
       .neq('title', 'm')
       .not('cover_url', 'is', null)
       .order('updated_at', { ascending: false })
@@ -182,13 +184,13 @@ export async function getCachedCatalogVectors() {
       }
     }
 
-    const mapped = initialItems.map((item) => ({
+    const mapped = initialItems.map((item: any) => ({
       slug: item.id,
       title: item.title,
       cover_url: item.cover_url,
       status: item.status,
       genres: item.genres,
-      latest_chapter_number: maxMap.get(item.id) || 1,
+      latest_chapter_number: maxMap.get(item.id) || item.title_i18n?.latest_chapter || item.title_i18n?.total_chapters || 1,
       client_vector: [1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0],
     }));
 
@@ -255,12 +257,69 @@ export async function getCachedMangaDetail(id: string) {
     const manga = await resolveMangaRecord(id, supabase);
     if (!manga) return null;
 
-    const { data: chapters } = await supabase
+    let { data: chapters } = await supabase
       .from('chapters')
       .select('id, chapter_number, title, job_status, language, scanlation_group, created_at')
       .eq('manga_id', manga.id)
       .order('chapter_number', { ascending: true })
       .limit(5000);
+
+    // On-Demand Auto-Sync: If chapters are missing in DB, fetch live from Atsu / Asura in 150ms
+    if (!chapters || chapters.length === 0) {
+      try {
+        let rawChapters: any[] = [];
+        if (manga.source_provider === 'atsu') {
+          const res = await fetch(`https://atsu.moe/api/manga/allChapters?mangaId=${manga.source_id}`, {
+            signal: AbortSignal.timeout(6000),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            rawChapters = (json.chapters || []).map((c: any) => ({
+              manga_id: manga.id,
+              chapter_number: c.number || c.index || 1,
+              title: c.title || `Chapter ${c.number}`,
+              source_url: `https://atsu.moe/api/read/chapter?mangaId=${manga.source_id}&chapterId=${c.id}`,
+              job_status: 'READY',
+              language: 'en',
+              scanlation_group: 'Official',
+            }));
+          }
+        } else if (manga.source_provider === 'asura') {
+          const slug = manga.source_id.replace(/^asura:/, '');
+          const res = await fetch(`https://api.asurascans.com/api/series/${slug}/chapters`, {
+            signal: AbortSignal.timeout(6000),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            rawChapters = (json.data || []).map((c: any) => ({
+              manga_id: manga.id,
+              chapter_number: c.number,
+              title: c.title ? `Chapter ${c.number}: ${c.title}` : `Chapter ${c.number}`,
+              source_url: `https://api.asurascans.com/api/series/${slug}/chapters/${c.number}`,
+              job_status: 'READY',
+              language: 'en',
+              scanlation_group: 'Asura Scans',
+            }));
+          }
+        }
+
+        if (rawChapters.length > 0) {
+          // Asynchronously persist to Supabase in background
+          (async () => {
+            try {
+              for (let i = 0; i < rawChapters.length; i += 100) {
+                const batch = rawChapters.slice(i, i + 100);
+                await supabase.from('chapters').insert(batch);
+              }
+            } catch {}
+          })();
+
+          chapters = rawChapters as any;
+        }
+      } catch (syncErr) {
+        console.warn('[Cache] On-demand chapter sync error:', syncErr);
+      }
+    }
 
     const chapterNumbers = (chapters || []).map(c => Number(c.chapter_number) || 0);
     const latestChapter = chapterNumbers.length > 0 ? Math.max(...chapterNumbers) : 1;
@@ -289,7 +348,7 @@ export async function getCachedRecommendations(excludeId: string) {
   try {
     const { data: mangas } = await supabase
       .from('manga')
-      .select('id, title, cover_url, status, genres, description')
+      .select('id, title, cover_url, status, genres, description, title_i18n')
       .neq('id', excludeId)
       .neq('title', 'm')
       .not('cover_url', 'is', null)
@@ -312,7 +371,7 @@ export async function getCachedRecommendations(excludeId: string) {
 
     const result = (mangas || []).map((m: any) => ({
       ...m,
-      latest_chapter_number: maxMap.get(m.id) || 1,
+      latest_chapter_number: maxMap.get(m.id) || m.title_i18n?.latest_chapter || m.title_i18n?.total_chapters || 1,
     }));
 
     setCached(cacheKey, result, 600); // 10 minutes

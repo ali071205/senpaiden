@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🏯 Senpai Den — Frontend Portal
 
-## Getting Started
+The client-facing Progressive Web App (PWA) for Senpai Den, built with **Next.js 15/16 App Router**, **React 19**, and **Tailwind CSS**.
 
-First, run the development server:
+---
+
+## ⚡ Key Features
+
+- **3 Dynamic Reader Modes**:
+  - **Webtoon Mode**: Continuous vertical scroll with zero layout shift and virtualized rendering.
+  - **Single Page Flip**: Classic digital reader mode.
+  - **Double Spread Book View**: Two-page book rendering with automated Japanese right-to-left (RTL) reading layout.
+- **In-Memory Slice Preloader**: Background preloading of 4–6 upcoming image segments to ensure zero buffering during reading.
+- **Multi-Language Sub-Layer Switcher**: 1-tap switching between language scans (`en`, `es`, `fr`, `ja`).
+- **Responsive Monetization UX**:
+  - Non-intrusive, space-reserved Adsterra banner units (728x90 desktop / 320x50 mobile).
+  - Sticky bottom anchor ad that intelligently avoids mobile navigation collisions.
+  - Reader canvas is ad-free at the top; next chapter navigation button always appears above bottom ads.
+  - Premium subscriber ad-suppression check (`hasActivePremium()`).
+- **SEO & Discoverability**: Dynamic OpenGraph tags, JSON-LD structured schema, dynamic `sitemap.ts`, and `robots.ts`.
+
+---
+
+## 🚀 Running Locally
 
 ```bash
+# Install dependencies
+npm install
+
+# Setup environment variables
+cp ../.env.example .env.local
+
+# Run development server on port 3000
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# Run production build & verify
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📂 Architecture & Directory Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `src/app/`: App router routes (Manga details, Chapter Reader, Catalog Search, Discovery, Bookmarks, History).
+- `src/components/`: Modular UI units (`MangaReaderContainer.tsx`, `AdSlot.tsx`, `SiteLayout.tsx`, `FeaturedHeroCarousel.tsx`).
+- `src/lib/`: Database clients (`supabase.ts`), monetization switches (`monetization.ts`), and client utilities.

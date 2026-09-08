@@ -23,13 +23,70 @@ export async function GET(
     }
     const mangaId = manga.id;
 
-    // Fetch all chapters for navigation (up to 5,000 for long-running series)
-    const { data: chapters } = await supabase
+    // Fetch all chapters for navigation
+    let { data: chapters } = await supabase
       .from('chapters')
-      .select('id, chapter_number, title, job_status, language, scanlation_group')
+      .select('id, chapter_number, title, job_status, language, scanlation_group, source_url')
       .eq('manga_id', mangaId)
       .order('chapter_number', { ascending: true })
       .limit(5000);
+
+    // On-Demand Auto-Sync: If chapters are not yet in DB, fetch live from source provider (Atsu / Asura)
+    if (!chapters || chapters.length === 0) {
+      try {
+        let rawChapters: any[] = [];
+        if (manga.source_provider === 'atsu') {
+          const res = await fetch(`https://atsu.moe/api/manga/allChapters?mangaId=${manga.source_id}`, {
+            signal: AbortSignal.timeout(8000),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            rawChapters = (json.chapters || []).map((c: any) => ({
+              manga_id: manga.id,
+              chapter_number: c.number !== undefined && c.number !== null ? c.number : (c.index || 1),
+              title: c.title || `Chapter ${c.number ?? c.index ?? 1}`,
+              source_url: `https://atsu.moe/api/read/chapter?mangaId=${manga.source_id}&chapterId=${c.id}`,
+              job_status: 'READY',
+              language: 'en',
+              scanlation_group: 'Official',
+            }));
+          }
+        } else if (manga.source_provider === 'asura') {
+          const slug = manga.source_id.replace(/^asura:/, '');
+          const res = await fetch(`https://api.asurascans.com/api/series/${slug}/chapters`, {
+            signal: AbortSignal.timeout(8000),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            rawChapters = (json.data || []).map((c: any) => ({
+              manga_id: manga.id,
+              chapter_number: c.number,
+              title: c.title ? `Chapter ${c.number}: ${c.title}` : `Chapter ${c.number}`,
+              source_url: `https://api.asurascans.com/api/series/${slug}/chapters/${c.number}`,
+              job_status: 'READY',
+              language: 'en',
+              scanlation_group: 'Asura Scans',
+            }));
+          }
+        }
+
+        if (rawChapters.length > 0) {
+          // Persist to Supabase asynchronously
+          (async () => {
+            try {
+              for (let i = 0; i < rawChapters.length; i += 100) {
+                const batch = rawChapters.slice(i, i + 100);
+                await supabase.from('chapters').insert(batch);
+              }
+            } catch {}
+          })();
+
+          chapters = rawChapters as any;
+        }
+      } catch (err) {
+        console.warn('[Chapter Route] On-demand chapter sync error:', err);
+      }
+    }
 
     // Fetch current target chapter (prioritizing English and READY status)
     const { data: candidateChapters } = await supabase
@@ -42,13 +99,21 @@ export async function GET(
     // Pick English or first ready candidate
     let chapter = candidateChapters?.find((c) => c.language === 'en') || candidateChapters?.[0];
 
+    // Fallback to in-memory/synced chapters list
+    if (!chapter && (chapters || []).length > 0) {
+      chapter = (chapters || []).find((c) => parseFloat(String(c.chapter_number)) === chapterNumber);
+      if (!chapter && (chapterNumber === 1 || chapterNumber === 0)) {
+        chapter = (chapters || [])[0];
+      }
+    }
+
     // If chapter record is missing, query upstream provider to resolve a valid semantic source URL
     if (!chapter) {
       const newChapterId = crypto.randomUUID();
       let resolvedSourceUrl = '';
       let resolvedLanguage = 'en';
 
-      // 1. Check MangaDex if source_id is a UUID or provider is mangadex
+      // Check MangaDex if source_id is a UUID or provider is mangadex
       const dexId = (manga.source_id && /^[0-9a-f-]{36}$/i.test(manga.source_id)) ? manga.source_id : null;
       if (dexId) {
         try {
@@ -70,7 +135,6 @@ export async function GET(
         } catch {}
       }
 
-      // 2. Only persist to DB if a real valid upstream source URL was obtained
       if (resolvedSourceUrl) {
         const newCh = {
           id: newChapterId,
@@ -89,7 +153,6 @@ export async function GET(
         }
         chapter = newCh as any;
       } else {
-        // No valid upstream source URL found yet: keep candidate safely in memory without violating NOT NULL
         chapter = {
           id: newChapterId,
           manga_id: mangaId,
@@ -123,10 +186,71 @@ export async function GET(
 
     if (!pages || pages.length === 0 || hasInvalidKeys) {
       try {
-        let livePagesResolved = false;
+        let livePages: any[] = [];
 
-        // 1. If chapter source is MangaPill, prioritize MangaPill
-        if (chapter.source_url && chapter.source_url.includes('mangapill.com/chapters/')) {
+        // 1. Atsu.moe Direct CDN Resolution
+        if (manga.source_provider === 'atsu' || (chapter.source_url && chapter.source_url.includes('atsu.moe'))) {
+          let chapterId = '';
+          if (chapter.source_url) {
+            try {
+              const urlObj = new URL(chapter.source_url, 'https://atsu.moe');
+              chapterId = urlObj.searchParams.get('chapterId') || '';
+            } catch {}
+          }
+          if (!chapterId) {
+            const allChRes = await fetch(`https://atsu.moe/api/manga/allChapters?mangaId=${manga.source_id}`, {
+              signal: AbortSignal.timeout(8000),
+            });
+            if (allChRes.ok) {
+              const chData = await allChRes.json();
+              const target = (chData.chapters || []).find((c: any) => c.number === chapterNumber || c.index === chapterNumber);
+              if (target) chapterId = target.id;
+            }
+          }
+
+          if (chapterId) {
+            const readRes = await fetch(
+              `https://atsu.moe/api/read/chapter?mangaId=${manga.source_id}&chapterId=${chapterId}`,
+              { signal: AbortSignal.timeout(8000) }
+            );
+            if (readRes.ok) {
+              const readData = await readRes.json();
+              const rawPages = readData.readChapter?.pages || [];
+              if (rawPages.length > 0) {
+                livePages = rawPages.map((p: any, idx: number) => ({
+                  chapter_id: chapter.id,
+                  page_number: idx + 1,
+                  r2_keys: [`https://cdn.atsu.moe${p.image}`],
+                  slice_dimensions: [{ width: p.width || 800, height: p.height || 1200 }],
+                }));
+              }
+            }
+          }
+        }
+
+        // 2. Asura Scans Direct CDN Resolution
+        else if (manga.source_provider === 'asura' || (chapter.source_url && chapter.source_url.includes('asurascans.com'))) {
+          const seriesSlug = manga.source_id.replace(/^asura:/, '');
+          const asuraRes = await fetch(
+            `https://api.asurascans.com/api/series/${seriesSlug}/chapters/${chapterNumber}`,
+            { signal: AbortSignal.timeout(8000) }
+          );
+          if (asuraRes.ok) {
+            const asuraJson = await asuraRes.json();
+            const rawPages = asuraJson.data?.chapter?.pages || [];
+            if (rawPages.length > 0) {
+              livePages = rawPages.map((p: any, idx: number) => ({
+                chapter_id: chapter.id,
+                page_number: idx + 1,
+                r2_keys: [p.url],
+                slice_dimensions: [{ width: p.width || 800, height: p.height || 1200 }],
+              }));
+            }
+          }
+        }
+
+        // 3. MangaPill HTML Scrape
+        else if (chapter.source_url && chapter.source_url.includes('mangapill.com/chapters/')) {
           try {
             const pillRes = await fetch(chapter.source_url, {
               headers: {
@@ -139,18 +263,12 @@ export async function GET(
               const html = await pillRes.text();
               const imgMatches = [...html.matchAll(/data-src=["']([^"']+)["']/g)].map(m => m[1]);
               if (imgMatches.length > 0) {
-                const livePages = imgMatches.map((imgUrl: string, idx: number) => ({
+                livePages = imgMatches.map((imgUrl: string, idx: number) => ({
                   chapter_id: chapter.id,
                   page_number: idx + 1,
                   r2_keys: [imgUrl],
                   slice_dimensions: [{ width: 800, height: 1200 }],
                 }));
-                try {
-                  await supabase.from('pages').delete().eq('chapter_id', chapter.id);
-                  await supabase.from('pages').insert(livePages);
-                } catch {}
-                pages = livePages as any;
-                livePagesResolved = true;
               }
             }
           } catch (e) {
@@ -158,114 +276,66 @@ export async function GET(
           }
         }
 
-        // 2. If not resolved via MangaPill, attempt MangaDex resolution
-        if (!livePagesResolved) {
+        // 4. MangaDex Fallback
+        else {
           let chapterUuid = '';
           if (chapter.source_url && chapter.source_url.includes('mangadex.org/chapter/')) {
             chapterUuid = chapter.source_url.split('mangadex.org/chapter/')[1]?.split('/')[0]?.split('?')[0] || '';
           }
 
-          // First try the specific chapterUuid if available
-          if (chapterUuid) {
-            try {
-              const atHomeRes = await fetch(
-                `https://api.mangadex.org/at-home/server/${chapterUuid}`,
-                { signal: AbortSignal.timeout(8000) }
+          if (!chapterUuid && manga.source_id && /^[0-9a-f-]{36}$/i.test(manga.source_id)) {
+            const chRes = await fetch(
+              `https://api.mangadex.org/chapter?manga=${manga.source_id}&chapter=${chapterNumber}&limit=10&order[readableAt]=desc`,
+              { signal: AbortSignal.timeout(8000) }
+            );
+            if (chRes.ok) {
+              const chData = await chRes.json();
+              const candidates = (chData.data || []).filter((c: any) => 
+                (c.attributes?.pages > 0 || c.attributes?.data?.length > 0) && !c.attributes?.externalUrl
               );
-              if (atHomeRes.ok) {
-                const atHomeJson = await atHomeRes.json();
-                const hash = atHomeJson.chapter?.hash;
-                const files = atHomeJson.chapter?.data || [];
-                if (hash && files.length > 0) {
-                  const livePages = files.map((file: string, idx: number) => ({
-                    chapter_id: chapter.id,
-                    page_number: idx + 1,
-                    r2_keys: [`https://uploads.mangadex.org/data/${hash}/${file}`],
-                    slice_dimensions: [{ width: 800, height: 1200 }],
-                  }));
-                  try {
-                    await supabase.from('pages').delete().eq('chapter_id', chapter.id);
-                    await supabase.from('pages').insert(livePages);
-                  } catch {}
-                  pages = livePages as any;
-                  livePagesResolved = true;
-                }
+              const enCh = candidates.find((c: any) => c.attributes?.translatedLanguage === 'en') || candidates[0];
+              if (enCh) {
+                chapterUuid = enCh.id;
               }
-            } catch {}
+            }
           }
 
-          // If the specific chapterUuid had 0 pages (e.g. external link to Tapas) or failed,
-          // search MangaDex for alternative readable candidates with pages > 0!
-          if (!livePagesResolved) {
-            let dexMangaId = '';
-            if (manga.source_id && /^[0-9a-f-]{36}$/i.test(manga.source_id)) {
-              dexMangaId = manga.source_id;
-            } else {
-              try {
-                const searchRes = await fetch(
-                  `https://api.mangadex.org/manga?title=${encodeURIComponent(manga.title)}&limit=1`,
-                  { signal: AbortSignal.timeout(8000) }
-                );
-                if (searchRes.ok) {
-                  const searchJson = await searchRes.json();
-                  dexMangaId = searchJson.data?.[0]?.id || '';
-                }
-              } catch {}
-            }
-
-            if (dexMangaId) {
-              try {
-                const chRes = await fetch(
-                  `https://api.mangadex.org/chapter?manga=${dexMangaId}&chapter=${chapterNumber}&limit=25&order[readableAt]=desc`,
-                  { signal: AbortSignal.timeout(8000) }
-                );
-                if (chRes.ok) {
-                  const chData = await chRes.json();
-                  const candidates = (chData.data || []).filter((c: any) => 
-                    (c.attributes?.pages > 0 || c.attributes?.data?.length > 0) && !c.attributes?.externalUrl
-                  );
-                  const enCh = candidates.find((c: any) => c.attributes?.translatedLanguage === 'en') ||
-                               candidates[0];
-                  if (enCh) {
-                    const atHomeRes = await fetch(
-                      `https://api.mangadex.org/at-home/server/${enCh.id}`,
-                      { signal: AbortSignal.timeout(8000) }
-                    );
-                    if (atHomeRes.ok) {
-                      const atHomeJson = await atHomeRes.json();
-                      const hash = atHomeJson.chapter?.hash;
-                      const files = atHomeJson.chapter?.data || [];
-                      if (hash && files.length > 0) {
-                        const livePages = files.map((file: string, idx: number) => ({
-                          chapter_id: chapter.id,
-                          page_number: idx + 1,
-                          r2_keys: [`https://uploads.mangadex.org/data/${hash}/${file}`],
-                          slice_dimensions: [{ width: 800, height: 1200 }],
-                        }));
-
-                        try {
-                          await supabase.from('pages').delete().eq('chapter_id', chapter.id);
-                          await supabase.from('pages').insert(livePages);
-                          await supabase.from('chapters').update({
-                            source_url: `https://mangadex.org/chapter/${enCh.id}`,
-                            language: enCh.attributes?.translatedLanguage || chapter.language,
-                          }).eq('id', chapter.id);
-                        } catch {}
-
-                        pages = livePages as any;
-                        livePagesResolved = true;
-                      }
-                    }
-                  }
-                }
-              } catch (e) {
-                console.warn('[Chapter Route] MangaDex candidate fetch error:', e);
+          if (chapterUuid) {
+            const atHomeRes = await fetch(
+              `https://api.mangadex.org/at-home/server/${chapterUuid}`,
+              { signal: AbortSignal.timeout(8000) }
+            );
+            if (atHomeRes.ok) {
+              const atHomeJson = await atHomeRes.json();
+              const hash = atHomeJson.chapter?.hash;
+              const files = atHomeJson.chapter?.data || [];
+              if (hash && files.length > 0) {
+                livePages = files.map((file: string, idx: number) => ({
+                  chapter_id: chapter.id,
+                  page_number: idx + 1,
+                  r2_keys: [`https://uploads.mangadex.org/data/${hash}/${file}`],
+                  slice_dimensions: [{ width: 800, height: 1200 }],
+                }));
               }
             }
           }
         }
+
+        // Cache resolved pages in background to Supabase
+        if (livePages.length > 0) {
+          (async () => {
+            try {
+              await supabase.from('pages').delete().eq('chapter_id', chapter.id);
+              await supabase.from('pages').insert(livePages);
+            } catch (cacheErr) {
+              console.warn('[Chapter Route] Failed to cache live pages to DB:', cacheErr);
+            }
+          })();
+
+          pages = livePages as any;
+        }
       } catch (err) {
-        console.warn('[Chapter Route] Live page fetch fallback error:', err);
+        console.warn('[Chapter Route] Live CDN page fetch fallback error:', err);
       }
     }
 

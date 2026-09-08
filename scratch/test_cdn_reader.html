@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Direct CDN Manga Reader Test — Senpai Den</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --card-bg: #151922;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border: rgba(255, 255, 255, 0.08);
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: rgba(21, 25, 34, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 12px 24px;
+    }
+    .header-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .title {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1.25rem;
+      background: linear-gradient(135deg, #a5b4fc, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    select, input, button {
+      background: #1e2430;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s;
+    }
+    select:focus, input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+    }
+    button:hover {
+      background: var(--accent-hover);
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(52, 211, 153, 0.2);
+    }
+    main {
+      flex: 1;
+      max-width: 800px;
+      margin: 24px auto;
+      width: 100%;
+      padding: 0 16px;
+    }
+    #meta-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .meta-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .meta-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    #reader-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      min-height: 400px;
+    }
+    .page-wrapper {
+      width: 100%;
+      position: relative;
+      background: #0f1218;
+      margin: 0;
+      padding: 0;
+      line-height: 0;
+    }
+    .page-img {
+      width: 100%;
+      height: auto;
+      display: block;
+      user-select: none;
+      transition: opacity 0.3s ease;
+    }
+    .page-num {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: #fff;
+      pointer-events: none;
+    }
+    .loading-spinner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 0;
+      gap: 16px;
+      color: var(--text-muted);
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-content">
+      <div class="title">⚡ Direct CDN Live Reader Test</div>
+      
+      <div class="controls">
+        <select id="source-select">
+          <option value="asura">Asura Scans (Direct API + CDN)</option>
+          <option value="atsu">Atsu.moe (Hono API + CDN)</option>
+        </select>
+
+        <input type="text" id="search-input" placeholder="Search title..." value="Barbarian">
+        <button id="search-btn">Search</button>
+
+        <select id="manga-select" style="max-width: 180px;"></select>
+        <select id="chapter-select" style="max-width: 160px;"></select>
+        <button id="load-btn">Load Chapter</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="meta-box">
+      <div class="meta-item">
+        <span class="meta-label">Source Provider</span>
+        <span class="meta-value" id="val-provider">Asura Scans</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">CDN Domain</span>
+        <span class="meta-value" id="val-cdn">cdn.asurascans.com</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Total Pages</span>
+        <span class="meta-value" id="val-pages">0</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Referrer Policy</span>
+        <span class="meta-value status-badge" id="val-policy">no-referrer (Active)</span>
+      </div>
+    </div>
+
+    <div id="reader-container">
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+        <p>Ready to load manga from source CDN...</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let currentSource = 'asura';
+    let currentMangaList = [];
+    let currentChaptersList = [];
+
+    const sourceSelect = document.getElementById('source-select');
+    const searchInput = document.getElementById('search-input');
+    const searchBtn = document.getElementById('search-btn');
+    const mangaSelect = document.getElementById('manga-select');
+    const chapterSelect = document.getElementById('chapter-select');
+    const loadBtn = document.getElementById('load-btn');
+    const readerContainer = document.getElementById('reader-container');
+
+    const valProvider = document.getElementById('val-provider');
+    const valCdn = document.getElementById('val-cdn');
+    const valPages = document.getElementById('val-pages');
+
+    sourceSelect.addEventListener('change', (e) => {
+      currentSource = e.target.value;
+      if (currentSource === 'asura') {
+        searchInput.value = 'Barbarian';
+        valProvider.textContent = 'Asura Scans';
+        valCdn.textContent = 'cdn.asurascans.com';
+      } else {
+        searchInput.value = 'Solo Leveling';
+        valProvider.textContent = 'Atsu.moe';
+        valCdn.textContent = 'cdn.atsu.moe';
+      }
+      performSearch();
+    });
+
+    searchBtn.addEventListener('click', performSearch);
+    mangaSelect.addEventListener('change', fetchChapters);
+    loadBtn.addEventListener('click', loadChapterPages);
+
+    async function performSearch() {
+      const q = searchInput.value.trim();
+      if (!q) return;
+
+      mangaSelect.innerHTML = '<option>Searching...</option>';
+      chapterSelect.innerHTML = '<option>Waiting...</option>';
+
+      try {
+        if (currentSource === 'asura') {
+          const res = await fetch(`https://api.asurascans.com/api/search?q=${encodeURIComponent(q)}`);
+          const json = await res.json();
+          currentMangaList = json.data || [];
+          mangaSelect.innerHTML = currentMangaList.map((m, idx) => `<option value="${idx}">${m.title}</option>`).join('');
+        } else {
+          const res = await fetch(`https://atsu.moe/api/search/manga?q=${encodeURIComponent(q)}&query_by=title`);
+          const json = await res.json();
+          currentMangaList = (json.hits || []).map(h => h.document);
+          mangaSelect.innerHTML = currentMangaList.map((m, idx) => `<option value="${idx}">${m.title}</option>`).join('');
+        }
+
+        if (currentMangaList.length > 0) {
+          fetchChapters();
+        } else {
+          mangaSelect.innerHTML = '<option>No results found</option>';
+        }
+      } catch (err) {
+        console.error(err);
+        mangaSelect.innerHTML = '<option>Search error</option>';
+      }
+    }
+
+    async function fetchChapters() {
+      const selectedIndex = mangaSelect.value;
+      const manga = currentMangaList[selectedIndex];
+      if (!manga) return;
+
+      chapterSelect.innerHTML = '<option>Loading chapters...</option>';
+
+      try {
+        if (currentSource === 'asura') {
+          const res = await fetch(`https://api.asurascans.com/api/series/${manga.slug}/chapters`);
+          const json = await res.json();
+          currentChaptersList = json.data || [];
+          chapterSelect.innerHTML = currentChaptersList.map(c => `<option value="${c.number}">Ch. ${c.number} ${c.title ? '- ' + c.title : ''}</option>`).join('');
+        } else {
+          const res = await fetch(`https://atsu.moe/api/manga/allChapters?mangaId=${manga.id}`);
+          const json = await res.json();
+          currentChaptersList = json.chapters || [];
+          chapterSelect.innerHTML = currentChaptersList.map(c => `<option value="${c.id}">${c.title || 'Chapter ' + c.number}</option>`).join('');
+        }
+
+        if (currentChaptersList.length > 0) {
+          loadChapterPages();
+        }
+      } catch (err) {
+        console.error(err);
+        chapterSelect.innerHTML = '<option>Error loading chapters</option>';
+      }
+    }
+
+    async function loadChapterPages() {
+      readerContainer.innerHTML = `
+        <div class="loading-spinner">
+          <div class="spinner"></div>
+          <p>Fetching pages directly from ${currentSource === 'asura' ? 'cdn.asurascans.com' : 'cdn.atsu.moe'}...</p>
+        </div>
+      `;
+
+      const selectedManga = currentMangaList[mangaSelect.value];
+      const selectedChapterVal = chapterSelect.value;
+
+      try {
+        let pageUrls = [];
+
+        if (currentSource === 'asura') {
+          const res = await fetch(`https://api.asurascans.com/api/series/${selectedManga.slug}/chapters/${selectedChapterVal}`);
+          const json = await res.json();
+          const pages = json.data?.chapter?.pages || [];
+          pageUrls = pages.map(p => p.url);
+        } else {
+          const res = await fetch(`https://atsu.moe/api/read/chapter?mangaId=${selectedManga.id}&chapterId=${selectedChapterVal}`);
+          const json = await res.json();
+          const pages = json.readChapter?.pages || [];
+          pageUrls = pages.map(p => 'https://cdn.atsu.moe' + p.image);
+        }
+
+        valPages.textContent = pageUrls.length;
+
+        if (pageUrls.length === 0) {
+          readerContainer.innerHTML = '<p style="padding: 40px; color: #ef4444;">No pages found for this chapter.</p>';
+          return;
+        }
+
+        readerContainer.innerHTML = '';
+        pageUrls.forEach((url, idx) => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'page-wrapper';
+
+          const img = document.createElement('img');
+          img.className = 'page-img';
+          img.src = url;
+          // CRITICAL: referrerpolicy="no-referrer" allows loading from protected CDNs without 403
+          img.referrerPolicy = 'no-referrer';
+          img.loading = idx < 3 ? 'eager' : 'lazy';
+          img.decoding = 'async';
+          img.alt = `Page ${idx + 1}`;
+
+          const badge = document.createElement('span');
+          badge.className = 'page-num';
+          badge.textContent = `${idx + 1} / ${pageUrls.length}`;
+
+          wrapper.appendChild(img);
+          wrapper.appendChild(badge);
+          readerContainer.appendChild(wrapper);
+        });
+
+      } catch (err) {
+        console.error(err);
+        readerContainer.innerHTML = `<p style="padding: 40px; color: #ef4444;">Error rendering chapter: ${err.message}</p>`;
+      }
+    }
+
+    // Auto-init search on load
+    performSearch();
+  </script>
+</body>
+</html>
