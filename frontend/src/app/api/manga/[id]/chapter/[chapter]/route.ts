@@ -22,42 +22,99 @@ export async function GET(
     }
     const mangaId = manga.id;
 
-    // Fetch all chapters for navigation (up to 5,000 for long-running series)
-    const { data: chapters } = await supabase
+    // Fetch all chapters for navigation
+    let { data: chapters } = await supabase
       .from('chapters')
-      .select('id, chapter_number, title, job_status, language, scanlation_group')
+      .select('id, chapter_number, title, job_status, language, scanlation_group, source_url')
       .eq('manga_id', mangaId)
       .order('chapter_number', { ascending: true })
       .limit(5000);
 
-    // Fetch current target chapter (prioritizing English and READY status)
-    const { data: candidateChapters, error: chErr } = await supabase
-      .from('chapters')
-      .select('*')
-      .eq('manga_id', mangaId)
-      .eq('chapter_number', chapterNumber)
-      .limit(10);
+    // On-Demand Auto-Sync: If chapters are not yet in DB, fetch live from source provider
+    if (!chapters || chapters.length === 0) {
+      try {
+        let rawChapters: any[] = [];
+        if (manga.source_provider === 'atsu') {
+          const res = await fetch(`https://atsu.moe/api/manga/allChapters?mangaId=${manga.source_id}`, {
+            signal: AbortSignal.timeout(8000),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            rawChapters = (json.chapters || []).map((c: any) => ({
+              manga_id: manga.id,
+              chapter_number: c.number !== undefined && c.number !== null ? c.number : (c.index || 1),
+              title: c.title || `Chapter ${c.number ?? c.index ?? 1}`,
+              source_url: `https://atsu.moe/api/read/chapter?mangaId=${manga.source_id}&chapterId=${c.id}`,
+              job_status: 'READY',
+              language: 'en',
+              scanlation_group: 'Official',
+            }));
+          }
+        } else if (manga.source_provider === 'asura') {
+          const slug = manga.source_id.replace(/^asura:/, '');
+          const res = await fetch(`https://api.asurascans.com/api/series/${slug}/chapters`, {
+            signal: AbortSignal.timeout(8000),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            rawChapters = (json.data || []).map((c: any) => ({
+              manga_id: manga.id,
+              chapter_number: c.number,
+              title: c.title ? `Chapter ${c.number}: ${c.title}` : `Chapter ${c.number}`,
+              source_url: `https://api.asurascans.com/api/series/${slug}/chapters/${c.number}`,
+              job_status: 'READY',
+              language: 'en',
+              scanlation_group: 'Asura Scans',
+            }));
+          }
+        }
 
-    if (chErr || !candidateChapters || candidateChapters.length === 0) {
+        if (rawChapters.length > 0) {
+          // Persist to Supabase asynchronously
+          (async () => {
+            try {
+              for (let i = 0; i < rawChapters.length; i += 100) {
+                const batch = rawChapters.slice(i, i + 100);
+                await supabase.from('chapters').insert(batch);
+              }
+            } catch {}
+          })();
+
+          chapters = rawChapters as any;
+        }
+      } catch (err) {
+        console.warn('[Chapter Route] On-demand chapter sync error:', err);
+      }
+    }
+
+    // Find target chapter by chapter_number
+    let chapter = (chapters || []).find(
+      (c) => parseFloat(String(c.chapter_number)) === chapterNumber
+    );
+
+    // If not found by exact number, check if chapter 1 requested and fallback to lowest available
+    if (!chapter && (chapters || []).length > 0) {
+      if (chapterNumber === 1 || chapterNumber === 0) {
+        chapter = (chapters || [])[0];
+      }
+    }
+
+    if (!chapter) {
       return NextResponse.json({ error: 'Chapter not found' }, { status: 404 });
     }
 
-    // Pick English or first ready candidate
-    const chapter = candidateChapters.find((c) => c.language === 'en') || candidateChapters[0];
-
-    if (chapter.job_status !== 'READY' && chapter.job_status !== 'COMPLETED') {
-      return NextResponse.json(
-        { error: 'Chapter is currently being processed', job_status: chapter.job_status },
-        { status: 400 }
-      );
-    }
-
     // Fetch pages for this chapter
-    let { data: pages } = await supabase
-      .from('pages')
-      .select('*')
-      .eq('chapter_id', chapter.id)
-      .order('page_number', { ascending: true });
+    let pages: any[] = [];
+    if (chapter.id) {
+      const { data: dbPages } = await supabase
+        .from('pages')
+        .select('*')
+        .eq('chapter_id', chapter.id)
+        .order('page_number', { ascending: true });
+      if (dbPages && dbPages.length > 0) {
+        pages = dbPages;
+      }
+    }
 
     // Fallback: If pages are completely missing in DB, resolve live CDN pages from Atsu, Asura, or MangaDex
     if (!pages || pages.length === 0) {
@@ -67,9 +124,11 @@ export async function GET(
         // 1. Atsu.moe Direct CDN Resolution
         if (manga.source_provider === 'atsu' || (chapter.source_url && chapter.source_url.includes('atsu.moe'))) {
           let chapterId = '';
-          if (chapter.source_url && chapter.source_url.includes('chapterId=' || chapter.source_url.includes('/chapter/'))) {
-            const urlObj = new URL(chapter.source_url, 'https://atsu.moe');
-            chapterId = urlObj.searchParams.get('chapterId') || '';
+          if (chapter.source_url) {
+            try {
+              const urlObj = new URL(chapter.source_url, 'https://atsu.moe');
+              chapterId = urlObj.searchParams.get('chapterId') || '';
+            } catch {}
           }
           if (!chapterId) {
             // Fetch all chapters to find the chapterId for this chapterNumber
