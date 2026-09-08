@@ -61,6 +61,8 @@ export async function getCachedMangaList(params: {
   const offset = (page - 1) * limit;
   let query: any = supabase
     .from('manga')
+    .select('id, title, cover_url, status, genres, description, updated_at, view_count, title_i18n', { count: 'exact' })
+    .neq('title', 'm')
     .not('title', 'is', null)
     .not('cover_url', 'is', null);
 
