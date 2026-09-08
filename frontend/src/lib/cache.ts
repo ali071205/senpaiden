@@ -45,11 +45,11 @@ export async function getCachedMangaList(params: {
   const offset = (page - 1) * limit;
   let query = supabase
     .from('manga')
-    .select('id, title, cover_url, status, genres, description, updated_at', { count: 'exact' })
+    .select('id, title, cover_url, status, genres, description, updated_at, view_count, title_i18n', { count: 'exact' })
     .neq('title', 'm')
     .not('title', 'is', null)
     .not('cover_url', 'is', null)
-    .order('updated_at', { ascending: false })
+    .order('view_count', { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1);
 
   if (q && q.trim() !== '') {
@@ -85,7 +85,7 @@ export async function getCachedMangaList(params: {
 
       enrichedData = enrichedData.map((m: any) => ({
         ...m,
-        latest_chapter_number: maxMap.get(m.id) || 1,
+        latest_chapter_number: maxMap.get(m.id) || m.title_i18n?.latest_chapter || m.title_i18n?.total_chapters || 1,
       }));
     } catch {}
   }
@@ -133,7 +133,7 @@ export async function getCachedCatalogVectors() {
   try {
     const { data: initialItems, error } = await supabase
       .from('manga')
-      .select('id, title, cover_url, status, genres')
+      .select('id, title, cover_url, status, genres, title_i18n')
       .neq('title', 'm')
       .not('cover_url', 'is', null)
       .order('updated_at', { ascending: false })
@@ -155,13 +155,13 @@ export async function getCachedCatalogVectors() {
       }
     }
 
-    const mapped = initialItems.map((item) => ({
+    const mapped = initialItems.map((item: any) => ({
       slug: item.id,
       title: item.title,
       cover_url: item.cover_url,
       status: item.status,
       genres: item.genres,
-      latest_chapter_number: maxMap.get(item.id) || 1,
+      latest_chapter_number: maxMap.get(item.id) || item.title_i18n?.latest_chapter || item.title_i18n?.total_chapters || 1,
       client_vector: [1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0],
     }));
 
@@ -319,7 +319,7 @@ export async function getCachedRecommendations(excludeId: string) {
   try {
     const { data: mangas } = await supabase
       .from('manga')
-      .select('id, title, cover_url, status, genres, description')
+      .select('id, title, cover_url, status, genres, description, title_i18n')
       .neq('id', excludeId)
       .neq('title', 'm')
       .not('cover_url', 'is', null)
@@ -342,7 +342,7 @@ export async function getCachedRecommendations(excludeId: string) {
 
     const result = (mangas || []).map((m: any) => ({
       ...m,
-      latest_chapter_number: maxMap.get(m.id) || 1,
+      latest_chapter_number: maxMap.get(m.id) || m.title_i18n?.latest_chapter || m.title_i18n?.total_chapters || 1,
     }));
 
     setCached(cacheKey, result, 600); // 10 minutes

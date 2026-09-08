@@ -117,19 +117,25 @@ export function MangaReaderContainer({
   const [activePagedIndex, setActivePagedIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [containerWidth, setContainerWidth] = useState(800); // Default max-width
+  const [isMobile, setIsMobile] = useState(false);
 
   const counterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Calculate scaled heights for virtual windowing
+  // Calculate scaled heights for virtual windowing & handle mobile viewport
   useEffect(() => {
-    const updateWidth = () => {
+    const updateDimensions = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
       setContainerWidth(Math.min(window.innerWidth, 800));
+      if (mobile && readingMode === "double") {
+        setReadingMode("single");
+      }
     };
-    updateWidth();
-    window.addEventListener('resize', updateWidth);
-    return () => window.removeEventListener('resize', updateWidth);
-  }, []);
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, [readingMode]);
 
   // We rely on React-level hidden image rendering for preloading so we can control fetchPriority
   // and prevent bandwidth competition with the active page.
@@ -181,7 +187,11 @@ export function MangaReaderContainer({
   useEffect(() => {
     const savedMode = localStorage.getItem("senpai_reader_mode") as ReadingMode;
     if (savedMode === "single" || savedMode === "double" || savedMode === "webtoon") {
-      setReadingMode(savedMode);
+      if (typeof window !== "undefined" && window.innerWidth < 768 && savedMode === "double") {
+        setReadingMode("single");
+      } else {
+        setReadingMode(savedMode);
+      }
     }
 
     const savedFit = localStorage.getItem("senpai_page_fit") as PageFitMode;
@@ -450,8 +460,9 @@ export function MangaReaderContainer({
   };
 
   const setMode = (mode: ReadingMode) => {
-    setReadingMode(mode);
-    localStorage.setItem("senpai_reader_mode", mode);
+    const finalMode = (isMobile || (typeof window !== "undefined" && window.innerWidth < 768)) && mode === "double" ? "single" : mode;
+    setReadingMode(finalMode);
+    localStorage.setItem("senpai_reader_mode", finalMode);
   };
 
   const updateFit = (fit: PageFitMode) => {
@@ -486,7 +497,7 @@ export function MangaReaderContainer({
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {/* 3 Reading Mode Selectors */}
+              {/* Reading Mode Selectors (Double hidden on mobile) */}
               <div className="flex items-center gap-0.5 sm:gap-1 bg-white/5 p-0.5 sm:p-1 rounded-xl border border-white/10">
                 <button
                   onClick={() => setMode("webtoon")}
@@ -510,13 +521,13 @@ export function MangaReaderContainer({
                 </button>
                 <button
                   onClick={() => setMode("double")}
-                  className={`px-1.5 sm:px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors ${
+                  className={`hidden md:flex px-1.5 sm:px-2 py-1 rounded-lg text-xs font-medium items-center gap-1 transition-colors ${
                     readingMode === "double" ? "bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/30 font-semibold" : "text-[#A1A1AA] hover:text-white"
                   }`}
                   title="Double Spread View (Book Mode)"
                 >
                   <Columns className="w-3.5 h-3.5" />
-                  <span className="hidden md:inline">Double</span>
+                  <span>Double</span>
                 </button>
               </div>
 
@@ -632,7 +643,7 @@ export function MangaReaderContainer({
   );
 })}
           </div>
-        ) : readingMode === "single" ? (
+        ) : readingMode === "single" || isMobile ? (
           /* Single Page View (Renders full stacked page) */
           <div className="w-full min-h-screen flex items-center justify-center pt-8 pb-20 px-2 bg-black">
             {displayPages[activePagedIndex] && (
