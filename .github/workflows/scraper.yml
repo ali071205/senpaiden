@@ -1,5 +1,7 @@
 name: Hourly Manga Scraper
 on:
+  schedule:
+    - cron: '0 */2 * * *'  # Every 2 hours — stays within GH Actions free budget
   workflow_dispatch:
 
 jobs:
@@ -20,10 +22,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          FIREFLY_API_BASE_URL: ${{ secrets.FIREFLY_API_BASE_URL }}
-          FIREFLY_API_KEY: ${{ secrets.FIREFLY_API_KEY }}
-          MANGAHOOK_API_BASE_URL: ${{ secrets.MANGAHOOK_API_BASE_URL }}
-          MANGAHOOK_API_KEY: ${{ secrets.MANGAHOOK_API_KEY }}
           MAX_REQUESTS_PER_RUN: '100'
           REQUEST_DELAY_MS: '500'
+          REQUEST_MAX_RETRIES: '3'
         run: npx tsx scripts/scraper.ts

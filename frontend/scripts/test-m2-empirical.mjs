@@ -1,10 +1,13 @@
 // frontend/scripts/test-m2-empirical.js
 // Empirical test harness for Milestone 2 (Reader Immersion, Interstitial Removal & Mobile Layout)
 
-const fs = require('fs');
-const path = require('path');
-const assert = require('assert');
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert';
+import { fileURLToPath } from 'node:url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '..');
 
 console.log('=== SENPAI DEN MILESTONE 2 EMPIRICAL VERIFICATION HARNESS ===\n');

@@ -24,7 +24,7 @@ CREATE TABLE public.chapters (
   chapter_number numeric NOT NULL,
   title text,
   source_url text NOT NULL,
-  job_status text DEFAULT 'QUEUED'::text CHECK (job_status = ANY (ARRAY['DISCOVERED'::text, 'QUEUED'::text, 'PROCESSING'::text, 'READY'::text, 'FAILED'::text, 'STALE_RETRY'::text, 'ARCHIVED'::text])),
+  job_status text DEFAULT 'QUEUED'::text CHECK (job_status = ANY (ARRAY['DISCOVERED'::text, 'QUEUED'::text, 'PROCESSING'::text, 'STORAGE_VERIFYING'::text, 'READY'::text, 'FAILED'::text, 'NEEDS_REVIEW'::text, 'STALE'::text, 'STALE_RETRY'::text, 'ARCHIVED'::text])),
   content_freshness text DEFAULT 'fresh'::text CHECK (content_freshness = ANY (ARRAY['fresh'::text, 'stale'::text, 'archived'::text])),
   last_served_at timestamp with time zone,
   retry_count integer DEFAULT 0,
@@ -71,4 +71,19 @@ CREATE TABLE public.error_log (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT error_log_pkey PRIMARY KEY (id),
   CONSTRAINT error_log_chapter_id_fkey FOREIGN KEY (chapter_id) REFERENCES public.chapters(id)
+);
+CREATE TABLE public.system_config (
+  key text PRIMARY KEY,
+  value jsonb NOT NULL DEFAULT 'false'::jsonb,
+  updated_at timestamp with time zone DEFAULT now(),
+  updated_by text DEFAULT 'system'::text
+);
+CREATE TABLE public.system_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_type text NOT NULL,
+  severity text DEFAULT 'INFO'::text,
+  source text NOT NULL,
+  detail text,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now()
 );

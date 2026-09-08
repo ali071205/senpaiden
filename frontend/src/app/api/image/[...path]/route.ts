@@ -25,6 +25,43 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
     return new NextResponse('Bad Request', { status: 400 });
   }
 
+  // 0. Image Proxy for external CDNs (with anti-hotlinking referer support)
+  if (path[0] === 'proxy') {
+    const targetUrl = _req.nextUrl.searchParams.get('url');
+    if (!targetUrl) {
+      return new NextResponse('Bad Request: Missing url param', { status: 400 });
+    }
+
+    try {
+      const headers: Record<string, string> = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      };
+      if (targetUrl.includes('readdetectiveconan.com') || targetUrl.includes('mangapill.com')) {
+        headers['Referer'] = 'https://mangapill.com/';
+      }
+      const upstreamRes = await fetch(targetUrl, {
+        headers,
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (upstreamRes.ok) {
+        const contentType = upstreamRes.headers.get('content-type') || 'image/jpeg';
+        const buffer = await upstreamRes.arrayBuffer();
+        return new NextResponse(buffer, {
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=31536000, immutable',
+          },
+        });
+      }
+      return new NextResponse('Upstream image error', { status: upstreamRes.status });
+    } catch (err: any) {
+      console.error('[Image Proxy] Error fetching external image:', err?.message);
+      return new NextResponse('Proxy fetch failed', { status: 502 });
+    }
+  }
+
   // 1. Direct Google Drive fileId path: /api/image/gdrive/<fileId>
   if (path[0] === 'gdrive' && path[1]) {
     const fileId = path[1];
@@ -37,6 +74,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
         },
       });
     }
+    return new NextResponse('Image Not Found on Google Drive', { status: 404 });
   }
 
   const s3 = getS3Client();
@@ -67,19 +105,22 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
   } catch {
     // 3. Fallback: Supabase Storage for legacy uploaded images
     try {
-      const fallbackUrl = `https://lsdnqbfiytyonvmzurxj.supabase.co/storage/v1/object/public/manga-images/${key}`;
-      const fallbackRes = await fetch(fallbackUrl);
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (supabaseUrl) {
+        const fallbackUrl = `${supabaseUrl}/storage/v1/object/public/manga-images/${key}`;
+        const fallbackRes = await fetch(fallbackUrl);
 
-      if (fallbackRes.ok) {
-        const fallbackBlob = await fallbackRes.arrayBuffer();
-        const contentType = fallbackRes.headers.get('content-type') || 'image/webp';
+        if (fallbackRes.ok) {
+          const fallbackBlob = await fallbackRes.arrayBuffer();
+          const contentType = fallbackRes.headers.get('content-type') || 'image/webp';
 
-        return new NextResponse(fallbackBlob, {
-          headers: {
-            'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=31536000, immutable',
-          },
-        });
+          return new NextResponse(fallbackBlob, {
+            headers: {
+              'Content-Type': contentType,
+              'Cache-Control': 'public, max-age=31536000, immutable',
+            },
+          });
+        }
       }
       // 4. MinIO local storage check
       try {

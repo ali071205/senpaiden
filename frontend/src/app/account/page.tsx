@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bookmark, Check, Home, LogIn, LogOut, Mail, Save, UserRound, X, Ticket } from "lucide-react";
-import { getReaderProgression, PROGRESSION_UPDATED_EVENT, type ReaderProgression } from "@/lib/reader-progression";
+import { creditSuccessfulReferral, getReaderProgression, PROGRESSION_UPDATED_EVENT, type ReaderProgression } from "@/lib/reader-progression";
 import { endSession, getRegisteredAccounts, getStoredAccount, isSignedIn, rememberAccount, startSession, type StoredAccount } from "@/lib/auth-storage";
 import { addNotification } from "@/lib/notifications";
 
@@ -29,6 +29,7 @@ export default function AccountPage() {
   const [showReferralInput, setShowReferralInput] = useState(false);
   const [signupReferralCode, setSignupReferralCode] = useState("");
   const [signupReferralError, setSignupReferralError] = useState("");
+  const [referralMessage, setReferralMessage] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -133,6 +134,8 @@ export default function AccountPage() {
         <div><p className="text-xs font-bold uppercase tracking-[0.22em] text-primary">Reader identity</p><h1 className="mt-2 text-3xl font-black text-white md:text-4xl">Your account</h1><p className="mt-2 max-w-xl text-sm text-zinc-400">Manage the name and details shown across your SenpaiDen experience.</p></div>
         <Link href="/" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-bold text-zinc-200 transition hover:border-primary/30 hover:bg-primary/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"><Home className="h-4 w-4" /> Home</Link>
       </header>
+
+      {referralMessage && <div role="status" className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300"><Check className="h-4 w-4 shrink-0" />{referralMessage}<button onClick={() => setReferralMessage(null)} className="ml-auto shrink-0 text-emerald-400 hover:text-white"><X className="h-4 w-4" /></button></div>}
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <aside className="overflow-hidden rounded-3xl border border-white/10 bg-[#11131A]">

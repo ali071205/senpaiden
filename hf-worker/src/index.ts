@@ -58,11 +58,17 @@ if (dns.setDefaultResultOrder) {
 const PORT = process.env.PORT || 7860;
 const MAX_SLICE_HEIGHT = 1500;
 const WEBP_QUALITY = 75;
-const TIMEOUT_MINUTES = 15; // 15-minute timeout for large chapters under heavy load
+const TIMEOUT_MINUTES = 10; // 10-minute timeout — aligned with CF Worker watchdog
 
 // ── Supabase client (service role — full write access) ──────────────────────
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://lsdnqbfiytyonvmzurxj.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzZG5xYmZpeXR5b252bXp1cnhqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDg2NTMwNSwiZXhwIjoyMTAwNDQxMzA1fQ.hHV8Iq8mr7edka6SLSa1qRHq_AG6cf5C3tywKNaHfd8';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  console.error('[Worker] FATAL: SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env');
+  console.error('[Worker] Copy .env.example to .env and fill in the required values.');
+  process.exit(1);
+}
 
 const supabase = createClient(
   SUPABASE_URL,
@@ -380,6 +386,17 @@ async function uploadToStorage(key: string, buffer: Buffer, chapterId?: string):
 // ── 3. Main Poll Loop ─────────────────────────────────────────────────────────
 async function processNextJob() {
   try {
+    // 0. Check maintenance mode before claiming any job
+    try {
+      const { data: isMaint } = await supabase.rpc('is_maintenance_mode');
+      if (isMaint === true) {
+        console.log('[Worker] Maintenance mode active — skipping job claim.');
+        return false;
+      }
+    } catch {
+      // If RPC doesn't exist yet (migration not applied), proceed normally
+    }
+
     // 1. Claim a QUEUED job atomically via RPC
     const { data: qData, error: qErr } = await supabase
       .rpc('claim_next_chapter')
@@ -562,15 +579,43 @@ async function processNextJob() {
 
 async function requeueFailedJobs() {
   try {
+    // Only re-queue chapters that haven't exceeded the retry limit (3 attempts max)
     const { data, error } = await supabase
       .from('chapters')
-      .update({ job_status: 'QUEUED', updated_at: new Date().toISOString() })
+      .select('id, retry_count')
       .eq('job_status', 'FAILED')
-      .select('id');
+      .lt('retry_count', 3);
 
-    if (!error && data && data.length > 0) {
-      console.log(`[Worker] Automatically re-queued ${data.length} previously FAILED chapters.`);
+    if (error || !data || data.length === 0) return;
+
+    const retryableIds = data.map(c => c.id);
+
+    // Increment retry_count and re-queue
+    const { error: updateErr } = await supabase
+      .from('chapters')
+      .update({
+        job_status: 'QUEUED',
+        retry_count: data[0]?.retry_count !== undefined ? undefined : 0, // Will be set per-row below
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', retryableIds);
+
+    if (updateErr) {
+      console.warn(`[Worker] Re-queue update failed: ${updateErr.message}`);
+      return;
     }
+
+    // Increment retry_count for each re-queued chapter
+    for (const ch of data) {
+      await supabase
+        .from('chapters')
+        .update({ retry_count: (ch.retry_count || 0) + 1 })
+        .eq('id', ch.id);
+    }
+
+    console.log(`[Worker] Re-queued ${retryableIds.length} FAILED chapters (retry_count < 3). ${
+      data.length < retryableIds.length ? `Skipped chapters at max retries.` : ''
+    }`);
   } catch (e: any) {
     console.warn(`[Worker] Re-queue check notice: ${e?.message || e}`);
   }

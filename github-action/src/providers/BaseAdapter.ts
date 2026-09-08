@@ -28,10 +28,11 @@ export abstract class BaseAdapter implements MangaProvider {
    * Throttled fetch: enforces 2 req/s and 100 req/run limits.
    * Uses a promise chain (not setInterval) for precise serialization.
    */
-  protected async throttledFetch(url: string): Promise<Response> {
+  protected async throttledFetch(url: string, init?: RequestInit): Promise<Response> {
     // Read lazily so tests can override process.env values per-test
     const maxRequests = parseInt(process.env.MAX_REQUESTS_PER_RUN ?? '100', 10);
     const delayMs    = parseInt(process.env.REQUEST_DELAY_MS    ?? '500', 10);
+    const maxRetries = parseInt(process.env.REQUEST_MAX_RETRIES ?? '3', 10);
 
     if (this.requestCount >= maxRequests) {
       throw new Error(
@@ -42,9 +43,19 @@ export abstract class BaseAdapter implements MangaProvider {
     const result = this.requestQueue.then(async () => {
       await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
 
-      const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]!;
-      const response = await fetch(url, {
-        headers: {
+      let lastError: any = null;
+      let lastResponse: Response | null = null;
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        if (attempt > 0) {
+          const baseDelay = parseInt(process.env.REQUEST_RETRY_BASE_MS ?? '1000', 10);
+          const backoff = Math.min(baseDelay * Math.pow(2, attempt - 1) + Math.random() * 200, 10000);
+          console.warn(`[${this.providerName}] Retrying request (${attempt}/${maxRetries}) after ${Math.round(backoff)}ms: ${url}`);
+          await new Promise<void>((resolve) => setTimeout(resolve, backoff));
+        }
+
+        const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]!;
+        const defaultHeaders: Record<string, string> = {
           'User-Agent': ua,
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.5',
@@ -52,12 +63,40 @@ export abstract class BaseAdapter implements MangaProvider {
           'DNT': '1',
           'Connection': 'keep-alive',
           'Upgrade-Insecure-Requests': '1',
-        },
-      });
+        };
+
+        const mergedHeaders = { ...defaultHeaders, ...(init?.headers as Record<string, string> ?? {}) };
+
+        try {
+          const response = await fetch(url, {
+            ...init,
+            headers: mergedHeaders,
+            signal: init?.signal ?? AbortSignal.timeout(15000),
+          });
+
+          // Retry on 429 (Rate Limit) or 5xx (Server Error)
+          if (response.status === 429 || (response.status >= 500 && response.status <= 504)) {
+            lastResponse = response;
+            continue;
+          }
+
+          this.requestCount++;
+          console.log(`[${this.providerName}] Req ${this.requestCount}/${maxRequests}: ${url} → ${response.status}`);
+          return response;
+        } catch (err: any) {
+          lastError = err;
+          if (attempt === maxRetries) {
+            break;
+          }
+        }
+      }
 
       this.requestCount++;
-      console.log(`[${this.providerName}] Req ${this.requestCount}/${maxRequests}: ${url} → ${response.status}`);
-      return response;
+      if (lastResponse) {
+        console.warn(`[${this.providerName}] Req ${this.requestCount}/${maxRequests}: ${url} → ${lastResponse.status} (exhausted ${maxRetries} retries)`);
+        return lastResponse;
+      }
+      throw lastError || new Error(`[${this.providerName}] Failed to fetch ${url} after ${maxRetries} retries`);
     });
 
     // Swallow errors in the chain so the queue doesn't stall

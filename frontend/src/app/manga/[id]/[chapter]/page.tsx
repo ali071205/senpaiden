@@ -74,7 +74,10 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
   const apiUrl = getApiUrl();
 
   try {
-    const compoundRes = await fetch(`${apiUrl}/api/manga/${resolvedParams.id}/chapter/${resolvedParams.chapter}`);
+    const compoundRes = await fetch(
+      `${apiUrl}/api/manga/${resolvedParams.id}/chapter/${resolvedParams.chapter}`,
+      { cache: "no-store" }
+    );
 
     if (!compoundRes.ok) {
       if (compoundRes.status === 400) {
@@ -183,7 +186,8 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
       </>
     );
   } catch (e) {
-    if ((e as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) {
+    const digest = (e as { digest?: string })?.digest;
+    if (digest?.startsWith("NEXT_")) {
       throw e;
     }
     notFound();

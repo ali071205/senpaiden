@@ -26,10 +26,10 @@ const nextConfig = {
     optimizePackageImports: ['lucide-react', '@supabase/supabase-js', 'framer-motion'],
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '',

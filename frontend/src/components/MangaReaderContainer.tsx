@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { ReaderImage } from "@/components/ReaderImage";
 import { RecommendationsRow } from "@/components/RecommendationsRow";
 import { StaleBanner } from "@/components/StaleBanner";
@@ -28,6 +29,7 @@ import {
   Trophy,
   Sparkles,
   X,
+  AlertCircle,
 } from "lucide-react";
 
 type PageFitMode = "fit-width" | "fit-height" | "original";
@@ -68,11 +70,15 @@ interface MangaReaderContainerProps {
 }
 
 const getSliceUrl = (baseUrl: string, key: string) => {
+  if (!key) return '';
   if (key.startsWith('gdrive/')) {
     return `/api/image/${key}`;
   }
+  if (key.includes('readdetectiveconan.com') || key.includes('mangapill.com')) {
+    return `/api/image/proxy?url=${encodeURIComponent(key)}`;
+  }
   let url = key;
-  if (!key.startsWith('http://') && !key.startsWith('https://')) {
+  if (!key.startsWith('http://') && !key.startsWith('https://') && !key.startsWith('/')) {
     const cleanBase = baseUrl.replace(/\/$/, '');
     const cleanKey = key.replace(/^\//, '');
     url = `${cleanBase}/${cleanKey}`;
@@ -282,7 +288,7 @@ export function MangaReaderContainer({
           const link = document.createElement('link');
           link.rel = 'prefetch';
           link.as = 'image';
-          link.href = `${r2BaseUrl}/${key}`;
+          link.href = getSliceUrl(r2BaseUrl, key);
           document.head.appendChild(link);
         });
       }
@@ -601,10 +607,38 @@ export function MangaReaderContainer({
 
       {/* Main Content Area */}
       <div className="w-full min-h-screen cursor-pointer" onClick={handleContainerClick}>
-        {readingMode === "webtoon" ? (
+        {slices.length === 0 ? (
+          /* Empty / Ingestion Pending State */
+          <div className="w-full min-h-[60vh] flex flex-col items-center justify-center p-8 text-center">
+            <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-5 shadow-lg shadow-amber-500/10">
+              <AlertCircle className="w-8 h-8 text-amber-400" />
+            </div>
+            <h3 className="text-xl md:text-2xl font-black text-white font-rajdhani mb-2">Chapter Pages Loading / Unavailable</h3>
+            <p className="text-sm text-zinc-400 max-w-md mb-6 leading-relaxed">
+              We are synchronizing the high-resolution pages for Chapter {chapterNumber} from source. Please refresh in a moment.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="px-6 py-2.5 rounded-xl bg-primary text-white font-bold text-sm shadow-[0_0_20px_rgba(255,46,46,0.3)] hover:scale-105 transition active:scale-95"
+              >
+                Refresh Chapter
+              </button>
+              <Link
+                href={`/manga/${mangaId}`}
+                className="px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 font-semibold text-sm border border-white/10 transition"
+              >
+                Back to Manga
+              </Link>
+            </div>
+          </div>
+        ) : readingMode === "webtoon" ? (
           /* Webtoon Strip Mode: Seamless Virtualized list */
           <div 
-            className="w-full relative mx-auto max-w-[800px] bg-black m-0 p-0 border-0 leading-none"
+            className={cn(
+              "w-full relative mx-auto bg-black m-0 p-0 border-0 leading-none",
+              pageFit === "original" ? "max-w-[1000px]" : "max-w-[800px]"
+            )}
             style={{ height: `${virtualizer.getTotalSize()}px` }}
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
@@ -696,7 +730,8 @@ export function MangaReaderContainer({
         )}
 
         {/* Chapter Completion & Next Chapter Intermission Card */}
-        <div className="mx-auto max-w-2xl px-4 pt-10 pb-28">
+        {slices.length > 0 && (
+          <div className="mx-auto max-w-2xl px-4 pt-10 pb-28">
           <div className="rounded-3xl border border-white/10 bg-[#12151D] p-6 text-center shadow-2xl backdrop-blur-xl relative overflow-hidden">
             {/* Ambient Background Glow */}
             <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-48 bg-primary/15 rounded-full blur-3xl pointer-events-none" />
@@ -753,6 +788,7 @@ export function MangaReaderContainer({
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Smart Preloader Queue (Background Idle Fetching) */}

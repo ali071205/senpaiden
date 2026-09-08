@@ -161,9 +161,7 @@ export function AdSlot({
     }
 
     return () => {
-      if (containerRef.current) {
-        containerRef.current.innerHTML = "";
-      }
+      container.innerHTML = "";
     };
   }, [visible, variant, isMobile, placement, safeId]);
 

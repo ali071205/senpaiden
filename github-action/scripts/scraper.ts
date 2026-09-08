@@ -63,18 +63,17 @@ async function handleProviderBlackout(error: string) {
   // 2. Insert a global DLQ record for the blackout
   await insertDLQ('PROVIDER_BLACKOUT', error);
 
-  // 3. Mark all READY chapters as STALE_RETRY
-  const { error: updateErr, count } = await supabase
-    .from('chapters')
-    .update({ job_status: 'STALE_RETRY', content_freshness: 'stale', updated_at: new Date().toISOString() })
-    .eq('job_status', 'READY')
-    // Only mark stale if not already in stale state
-    .neq('content_freshness', 'stale');
-
-  if (updateErr) {
-    console.error('[Scraper] Failed to update chapters to STALE_RETRY:', updateErr.message);
-  } else {
-    console.log(`[Scraper] Marked ${count ?? 0} READY chapters as STALE_RETRY.`);
+  // 3. Record system event for the autonomous control plane
+  try {
+    await supabase.from('system_events').insert({
+      event_type: 'SCRAPER_RUN',
+      severity: 'ERROR',
+      source: 'scraper',
+      detail: `Provider blackout encountered: ${error}`,
+      metadata: { error },
+    });
+  } catch (err: any) {
+    console.warn('[Scraper] Failed to record system event:', err.message);
   }
 }
 
@@ -206,11 +205,23 @@ async function main() {
 
   console.log('[Scraper] ── Run Summary ─────────────────────────────────────');
   if (blackout) {
-    console.log('[Scraper] Run ended with PROVIDER BLACKOUT. Stale mode active.');
+    console.log('[Scraper] Run ended with PROVIDER BLACKOUT.');
   } else {
     console.log(`[Scraper] Manga upserted:   ${totalMangaUpserted}`);
     console.log(`[Scraper] Chapters queued:  ${totalChaptersQueued}`);
     console.log('[Scraper] Run complete. ✓');
+
+    try {
+      await supabase.from('system_events').insert({
+        event_type: 'SCRAPER_RUN',
+        severity: 'INFO',
+        source: 'scraper',
+        detail: `Scraper completed successfully. Upserted: ${totalMangaUpserted}, Queued: ${totalChaptersQueued}`,
+        metadata: { totalMangaUpserted, totalChaptersQueued },
+      });
+    } catch (err: any) {
+      console.warn('[Scraper] Failed to record system event:', err.message);
+    }
   }
 }
 

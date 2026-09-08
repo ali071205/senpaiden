@@ -62,6 +62,7 @@ export function MangaDetailClient({
   related: DetailManga[] 
 }) {
   const router = useRouter();
+  const genres = useMemo(() => manga.genres || [], [manga.genres]);
   const [saved, setSaved] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<"chapters" | "info" | "reviews">("chapters");
@@ -247,7 +248,7 @@ export function MangaDetailClient({
           genres: manga.genres || ["Action"],
           status: manga.status || "Ongoing",
           cover_url: manga.cover_url,
-          latestChapter: chapters.length > 0 ? Math.max(...chapters.map(c => c.chapter_number)) : 1,
+          latestChapter,
         };
         library.push(mangaObj);
         setSaved(true);
@@ -257,10 +258,7 @@ export function MangaDetailClient({
     } catch {}
   };
 
-  const REVIEWS = [
-    { user: "akira_dx", avatar: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=40&h=40&fit=crop&auto=format", rating: 10, text: "Absolutely mind-blowing. Every chapter leaves you speechless. The art is insane and the story hits different. 10/10 no contest.", likes: 428, time: "3 days ago" },
-    { user: "luna_void", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop&auto=format", rating: 9, text: "One of the best stories I've read in years. The character development is incredible and the world-building is unmatched.", likes: 312, time: "1 week ago" },
-  ];
+
 
   return (
     <div className="text-foreground font-exo pb-16 md:pb-8">

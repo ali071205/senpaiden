@@ -21,6 +21,7 @@ export default async function Discover({ searchParams }: { searchParams: Promise
   const currentGenre = resolvedParams.genre || "All";
   const pageNum = parseInt(resolvedParams.page || "1", 10);
   const included = resolvedParams.included;
+  const excluded = resolvedParams.excluded;
   const sort = resolvedParams.sort;
   const limit = 24;
   
@@ -31,6 +32,9 @@ export default async function Discover({ searchParams }: { searchParams: Promise
     const result = await getCachedMangaList({
       q: searchQuery || undefined,
       genre: currentGenre !== "All" && !included ? currentGenre : undefined,
+      included,
+      excluded,
+      sort,
       page: pageNum,
       limit,
     });
@@ -49,6 +53,18 @@ export default async function Discover({ searchParams }: { searchParams: Promise
     }
     if (currentGenre !== "All") {
       filtered = filtered.filter((manga) => manga.genres.some((genre) => genre.toLowerCase() === currentGenre.toLowerCase()));
+    }
+    const incList = (included ? included.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean) : []);
+    if (incList.length > 0) {
+      filtered = filtered.filter((m) =>
+        incList.every((inc) => m.genres.some((g) => g.toLowerCase() === inc))
+      );
+    }
+    const excList = (excluded ? excluded.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean) : []);
+    if (excList.length > 0) {
+      filtered = filtered.filter((m) =>
+        !excList.some((exc) => m.genres.some((g) => g.toLowerCase() === exc))
+      );
     }
     totalCount = filtered.length;
     mangas = filtered.slice((pageNum - 1) * limit, pageNum * limit);

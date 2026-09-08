@@ -125,3 +125,11 @@ export async function fetchFileFromGDrive(fileId: string): Promise<Buffer | null
   inFlightRequests.set(fileId, fetchPromise);
   return fetchPromise;
 }
+
+export function isGDriveConfigured(): boolean {
+  return !!(
+    (process.env.GDRIVE_OAUTH_CLIENT_ID && process.env.GDRIVE_OAUTH_CLIENT_SECRET && process.env.GDRIVE_REFRESH_TOKEN) ||
+    process.env.GDRIVE_SERVICE_ACCOUNT_JSON ||
+    (process.env.GDRIVE_CLIENT_EMAIL && process.env.GDRIVE_PRIVATE_KEY)
+  );
+}

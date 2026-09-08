@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "NODE_OPTIONS='' next dev -p 3001",
-    "build": "NODE_OPTIONS='' next build",
-    "start": "NODE_OPTIONS='' next start -p 3001",
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
     "lint": "next lint"
   },
   "dependencies": {

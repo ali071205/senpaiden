@@ -41,12 +41,12 @@ export function ReaderImage({ src, width, height, priority = false, blurhash, co
     const alignClass = getAlignClass();
     if (pageFit === "fit-height") {
       // 144px accounts for pt-16 (64px) header and pb-20 (80px) footer to perfectly fit without scrollbars
-      return `max-h-[calc(100dvh-144px)] w-auto ${alignClass} object-contain block m-0 p-0 border-0 align-bottom`;
+      return `max-h-[calc(100dvh-144px)] w-auto max-w-full ${alignClass} object-contain block m-0 p-0 border-0 align-bottom`;
     }
     if (pageFit === "original") {
-      return `max-w-none max-h-none w-auto h-auto block m-0 p-0 border-0 align-bottom`;
+      return `w-auto max-w-full h-auto ${alignClass} block m-0 p-0 border-0 align-bottom`;
     }
-    return `w-full h-auto block m-0 p-0 border-0 align-bottom`;
+    return `w-full max-w-full h-auto ${alignClass} block m-0 p-0 border-0 align-bottom`;
   };
 
   const getContainerFitClass = () => {
@@ -58,15 +58,15 @@ export function ReaderImage({ src, width, height, priority = false, blurhash, co
       return `max-w-none w-auto flex items-center ${justifyClass}`;
     }
     if (pageFit === "original") {
-      return `max-w-none w-full overflow-x-auto flex ${justifyClass}`;
+      return `w-full max-w-full flex ${justifyClass}`;
     }
     return containerClassName || "max-w-[800px]";
   };
 
   return (
     <div 
-      className={cn("relative w-full mx-auto bg-black overflow-hidden leading-none select-none m-0 p-0 border-0", getContainerFitClass())}
-      style={{ aspectRatio: `${width} / ${height}` }}
+      className={cn("relative w-full mx-auto bg-black leading-none select-none m-0 p-0 border-0", getContainerFitClass())}
+      style={!isLoaded ? { aspectRatio: `${width} / ${height}` } : undefined}
     >
       {/* Loading Skeleton / Blurhash Placeholder */}
       {!isLoaded && !hasError && (
@@ -111,8 +111,6 @@ export function ReaderImage({ src, width, height, priority = false, blurhash, co
           key={retryKey}
           src={imageSrc}
           alt="Manga Page Slice"
-          width={width}
-          height={height}
           loading={priority ? "eager" : "lazy"}
           referrerPolicy="no-referrer"
           className={cn(

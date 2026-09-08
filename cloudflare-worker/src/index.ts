@@ -304,8 +304,8 @@ router.get('/api/chapter/:id/status', async (req, env) => {
     const started = new Date(chapter.processing_started_at).getTime();
     elapsed = Math.floor((Date.now() - started) / 1000);
 
-    // Watchdog: If processing > 300s, fail it
-    if (elapsed > 300) {
+    // Watchdog: If processing > 600s (10 min, aligned with HF Worker), fail it
+    if (elapsed > 600) {
       status = 'FAILED';
       
       // Update DB
@@ -318,7 +318,7 @@ router.get('/api/chapter/:id/status', async (req, env) => {
       await supabase.from('dead_letter_queue').insert({
         chapter_id: id,
         error_type: 'PROCESSING_TIMEOUT',
-        error_detail: 'Client polling watchdog triggered 300s timeout.',
+        error_detail: 'Client polling watchdog triggered 600s timeout.',
         max_retries: 3,
       });
     }

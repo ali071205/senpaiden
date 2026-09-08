@@ -31,11 +31,27 @@ export function setCached<T>(key: string, data: T, ttlSeconds: number = 180): vo
 export async function getCachedMangaList(params: {
   q?: string;
   genre?: string;
+  included?: string | string[];
+  excluded?: string | string[];
+  sort?: string;
   page?: number;
   limit?: number;
 }) {
-  const { q = '', genre = '', page = 1, limit = 24 } = params;
-  const cacheKey = `manga_list:${q}:${genre}:${page}:${limit}`;
+  const { q = '', genre = '', sort = '', page = 1, limit = 24 } = params;
+
+  // Normalize included genres array
+  const incList = Array.isArray(params.included)
+    ? params.included
+    : (params.included ? params.included.split(',').map((s) => s.trim()).filter(Boolean) : []);
+  const normalizedIncluded = Array.from(new Set(incList.map((g) => g.trim()).filter(Boolean))).sort();
+
+  // Normalize excluded genres array
+  const excList = Array.isArray(params.excluded)
+    ? params.excluded
+    : (params.excluded ? params.excluded.split(',').map((s) => s.trim()).filter(Boolean) : []);
+  const normalizedExcluded = Array.from(new Set(excList.map((g) => g.trim()).filter(Boolean))).sort();
+
+  const cacheKey = `manga_list:q=${q}:genre=${genre}:inc=${normalizedIncluded.join(',')}:exc=${normalizedExcluded.join(',')}:sort=${sort}:p=${page}:l=${limit}`;
   const cached = getCached<{ data: any[]; total: number; page: number; limit: number }>(cacheKey);
   if (cached) return cached;
 
@@ -43,21 +59,32 @@ export async function getCachedMangaList(params: {
   if (!supabase) return { data: [], total: 0, page, limit };
 
   const offset = (page - 1) * limit;
-  let query = supabase
+  let query: any = supabase
     .from('manga')
     .select('id, title, cover_url, status, genres, description, updated_at', { count: 'exact' })
     .neq('title', 'm')
-    .not('title', 'is', null)
-    .not('cover_url', 'is', null)
-    .order('updated_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .not('title', 'is', null);
+
+  // Sort by updated_at DESC when sort === 'updated' or by default
+  query = query.order('updated_at', { ascending: false });
+  query = query.range(offset, offset + limit - 1);
 
   if (q && q.trim() !== '') {
-    query = query.ilike('title', `%${q}%`);
+    query = query.ilike('title', `%${q.trim()}%`);
   }
 
-  if (genre && genre.trim() !== '' && genre !== 'All') {
-    query = query.contains('genres', [genre]);
+  // Combined included genres (from param or single genre filter)
+  const effectiveIncluded = [...normalizedIncluded];
+  if (genre && genre.trim() !== '' && genre !== 'All' && !effectiveIncluded.some((g) => g.toLowerCase() === genre.toLowerCase())) {
+    effectiveIncluded.push(genre);
+  }
+
+  if (effectiveIncluded.length > 0) {
+    query = query.contains('genres', effectiveIncluded);
+  }
+
+  if (normalizedExcluded.length > 0) {
+    query = query.not('genres', 'ov', `{${normalizedExcluded.join(',')}}`);
   }
 
   const { data, count, error } = await query;

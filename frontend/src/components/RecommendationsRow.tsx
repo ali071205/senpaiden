@@ -1,3 +1,5 @@
+"use client";
+
 import { fetchApi } from "@/lib/api-client";
 import { useState, useEffect } from "react";
 import { MangaCard } from "@/components/MangaCard";

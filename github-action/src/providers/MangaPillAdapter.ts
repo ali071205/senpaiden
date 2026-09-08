@@ -10,7 +10,7 @@ export class MangaPillAdapter extends BaseAdapter {
   private readonly baseUrl = 'https://mangapill.com';
 
   async fetchLatestManga(page: number): Promise<MangaDiscovery[]> {
-    const res = await this.throttledFetch(`${this.baseUrl}/manga?page=${page}`, {
+    const res = await this.throttledFetch(`${this.baseUrl}/?page=${page}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Referer': `${this.baseUrl}/`

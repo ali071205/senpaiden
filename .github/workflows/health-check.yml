@@ -1,0 +1,70 @@
+name: System Health Check
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: github-action/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: github-action
+
+      - name: Ping Supabase (prevents free-tier auto-pause)
+        working-directory: github-action
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          node -e "
+            const { createClient } = require('@supabase/supabase-js');
+            const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+            sb.from('manga').select('id', { count: 'exact', head: true })
+              .then(({ count, error }) => {
+                if (error) { console.error('Supabase UNHEALTHY:', error.message); process.exit(1); }
+                console.log('Supabase OK — ' + count + ' manga records.');
+              });
+          "
+
+      - name: Check HF Worker health endpoint
+        continue-on-error: true
+        env:
+          HF_WORKER_URL: ${{ secrets.HF_WORKER_URL }}
+        run: |
+          if [ -z "$HF_WORKER_URL" ]; then
+            echo "HF_WORKER_URL not configured — skipping."
+            exit 0
+          fi
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 30 "$HF_WORKER_URL")
+          if [ "$STATUS" -eq 200 ]; then
+            echo "HF Worker OK (HTTP $STATUS)"
+          else
+            echo "HF Worker UNHEALTHY (HTTP $STATUS)"
+          fi
+
+      - name: Log health check result to Supabase
+        working-directory: github-action
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          node -e "
+            const { createClient } = require('@supabase/supabase-js');
+            const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+            sb.from('error_log').insert({
+              provider: 'health_check',
+              error_type: 'HEALTH_PING',
+              error_detail: 'Automated health check completed at ' + new Date().toISOString()
+            }).then(({ error }) => {
+              if (error) console.warn('Failed to log health check:', error.message);
+              else console.log('Health check logged successfully.');
+            });
+          "
