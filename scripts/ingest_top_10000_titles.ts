@@ -64,7 +64,7 @@ function normalizeStatus(rawStatus?: string): 'ongoing' | 'completed' | 'hiatus'
 }
 
 async function ingestAtsuCatalog(targetCount = 10000) {
-  console.log(`\n🚀 Starting Ingestion of Top ${targetCount} Titles (Manga, Manhwa, Manhua)...`);
+  console.log(`\n🚀 Ingesting Top ${targetCount} Titles from Atsu (Manga, Manhwa, Manhua)...`);
 
   const perPage = 40;
   const totalPages = Math.ceil(targetCount / perPage);
@@ -74,132 +74,139 @@ async function ingestAtsuCatalog(targetCount = 10000) {
   let manhuaCount = 0;
   let coloredCount = 0;
 
-  for (let page = 1; page <= totalPages; page++) {
-    const url = `https://atsu.moe/api/search/manga?q=*&query_by=title&page=${page}&perPage=${perPage}&sort_by=views:desc`;
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      if (!res.ok) {
-        console.warn(`[Page ${page}] HTTP ${res.status} response from Atsu. Waiting 2s...`);
-        await sleep(2000);
-        continue;
-      }
+  // Process in chunks of 5 pages concurrently for high throughput
+  const chunkSize = 5;
+  for (let i = 1; i <= totalPages; i += chunkSize) {
+    const pageBatch = Array.from({ length: Math.min(chunkSize, totalPages - i + 1) }, (_, idx) => i + idx);
+    
+    const results = await Promise.all(
+      pageBatch.map(async (page) => {
+        const url = `https://atsu.moe/api/search/manga?q=*&query_by=title&page=${page}&perPage=${perPage}&sort_by=views:desc`;
+        try {
+          const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
+          if (!res.ok) return [];
+          const data = await res.json();
+          return data.hits || [];
+        } catch {
+          return [];
+        }
+      })
+    );
 
-      const data = await res.json();
-      const hits = data.hits || [];
-      if (hits.length === 0) {
-        console.log(`[Page ${page}] No more hits found. Finished at page ${page - 1}.`);
-        break;
-      }
+    const allHits = results.flat();
+    if (allHits.length === 0 && i > 1) {
+      console.log(`\nReached end of available pages at page ${i}.`);
+      break;
+    }
 
-      const records = hits.map((h: any) => {
-        const doc = h.document;
-        const { format, isColored } = detectFormatAndColor(doc);
+    const records = allHits.map((h: any) => {
+      const doc = h.document;
+      const { format, isColored } = detectFormatAndColor(doc);
 
-        if (format === 'Manga') mangaCount++;
-        else if (format === 'Manhwa') manhwaCount++;
-        else if (format === 'Manhua') manhuaCount++;
-        if (isColored) coloredCount++;
+      if (format === 'Manga') mangaCount++;
+      else if (format === 'Manhwa') manhwaCount++;
+      else if (format === 'Manhua') manhuaCount++;
+      if (isColored) coloredCount++;
 
-        // Ensure genres include format & color tags
-        const genreSet = new Set<string>(doc.tags || []);
-        genreSet.add(format);
-        if (isColored) genreSet.add('Full Color');
+      const genreSet = new Set<string>(doc.tags || []);
+      genreSet.add(format);
+      if (isColored) genreSet.add('Full Color');
 
-        const posterPath = doc.posterMedium || doc.poster || '';
-        const fullCoverUrl = posterPath.startsWith('http')
-          ? posterPath
-          : posterPath
-          ? `https://cdn.atsu.moe${posterPath}`
-          : null;
+      const posterPath = doc.posterMedium || doc.poster || '';
+      const fullCoverUrl = posterPath.startsWith('http')
+        ? posterPath
+        : posterPath
+        ? `https://cdn.atsu.moe${posterPath}`
+        : null;
 
-        return {
-          source_id: doc.id,
-          source_provider: 'atsu',
-          title: doc.title,
-          cover_url: fullCoverUrl,
-          genres: Array.from(genreSet),
-          author: null,
-          status: normalizeStatus(doc.status),
-          description: doc.synopsis || '',
-          view_count: doc.views || 0,
-          title_i18n: {
-            altTitles: doc.altTitles || [],
-            type: format,
-            is_colored: isColored,
-            weebCentralId: doc.weebCentralId || null,
-            releaseYear: doc.releaseYear || doc.year || null,
-            popularity: doc.popularity || null,
-            rank: totalIngested + 1,
-          },
-        };
-      });
+      return {
+        source_id: doc.id,
+        source_provider: 'atsu',
+        title: doc.title,
+        cover_url: fullCoverUrl,
+        genres: Array.from(genreSet),
+        author: null,
+        status: normalizeStatus(doc.status),
+        description: doc.synopsis || '',
+        view_count: doc.views || 0,
+        title_i18n: {
+          altTitles: doc.altTitles || [],
+          type: format,
+          is_colored: isColored,
+          weebCentralId: doc.weebCentralId || null,
+          releaseYear: doc.releaseYear || doc.year || null,
+          popularity: doc.popularity || null,
+          rank: totalIngested + 1,
+        },
+      };
+    });
 
-      // Upsert batch to Supabase
+    if (records.length > 0) {
       const { error } = await supabase.from('manga').upsert(records, { onConflict: 'source_id' });
       if (error) {
-        console.error(`[Page ${page}] Supabase upsert error:`, error.message);
+        console.error(`\nSupabase upsert error at pages ${pageBatch[0]}-${pageBatch[pageBatch.length - 1]}:`, error.message);
       } else {
         totalIngested += records.length;
         process.stdout.write(
-          `\r[Page ${page}/${totalPages}] Ingested: ${totalIngested}/${targetCount} (Manga: ${mangaCount}, Manhwa: ${manhwaCount}, Manhua: ${manhuaCount} | Colored: ${coloredCount})`
+          `\r[Progress] Ingested: ${totalIngested}/${targetCount} (Manga: ${mangaCount}, Manhwa: ${manhwaCount}, Manhua: ${manhuaCount} | Colored: ${coloredCount})`
         );
       }
-
-      // Respectful delay
-      await sleep(150);
-    } catch (err: any) {
-      console.error(`\n[Page ${page}] Fetch exception:`, err.message);
-      await sleep(1500);
     }
+
+    await sleep(200);
   }
 
-  console.log(`\n\n✅ Finished Ingestion: ${totalIngested} Titles in Supabase!`);
+  console.log(`\n✅ Finished Atsu Ingestion: ${totalIngested} Titles saved!`);
 }
 
 async function ingestAsuraCatalog() {
-  console.log(`\n🚀 Ingesting Asura Scans Original Manhwa Catalog...`);
-  try {
-    const res = await fetch('https://api.asurascans.com/api/series', { signal: AbortSignal.timeout(12000) });
-    if (!res.ok) {
-      console.warn(`Asura Scans API returned status ${res.status}`);
-      return;
-    }
+  console.log(`\n🚀 Ingesting Full Asura Scans Catalog (All Pages)...`);
+  let page = 1;
+  let totalAsura = 0;
 
-    const json = await res.json();
-    const seriesList = json.data || [];
-    console.log(`Fetched ${seriesList.length} Asura Scans series.`);
+  while (true) {
+    try {
+      const res = await fetch(`https://api.asurascans.com/api/series?page=${page}`, {
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) break;
 
-    const records = seriesList.map((s: any) => ({
-      source_id: `asura:${s.slug}`,
-      source_provider: 'asura',
-      title: s.title,
-      cover_url: s.cover_url || null,
-      genres: ['Manhwa', 'Full Color', 'Action'],
-      author: null,
-      status: normalizeStatus(s.status),
-      description: s.description || '',
-      view_count: 100000,
-      title_i18n: {
-        altTitles: [],
-        type: 'Manhwa',
-        is_colored: true,
-        asuraSlug: s.slug,
-      },
-    }));
+      const json = await res.json();
+      const seriesList = json.data || [];
+      if (seriesList.length === 0) break;
 
-    // Upsert in batches of 50
-    for (let i = 0; i < records.length; i += 50) {
-      const batch = records.slice(i, i + 50);
-      const { error } = await supabase.from('manga').upsert(batch, { onConflict: 'source_id' });
-      if (error) {
-        console.error(`Asura batch ${i} error:`, error.message);
+      const records = seriesList.map((s: any) => ({
+        source_id: `asura:${s.slug}`,
+        source_provider: 'asura',
+        title: s.title,
+        cover_url: s.cover_url || null,
+        genres: ['Manhwa', 'Full Color', 'Action'],
+        author: null,
+        status: normalizeStatus(s.status),
+        description: s.description || '',
+        view_count: 500000,
+        title_i18n: {
+          altTitles: [],
+          type: 'Manhwa',
+          is_colored: true,
+          asuraSlug: s.slug,
+        },
+      }));
+
+      const { error } = await supabase.from('manga').upsert(records, { onConflict: 'source_id' });
+      if (!error) {
+        totalAsura += records.length;
+        process.stdout.write(`\r[Asura] Ingested: ${totalAsura} series (Page ${page})...`);
       }
-    }
 
-    console.log(`✅ Ingested ${records.length} Asura Manhwas into Supabase!`);
-  } catch (err: any) {
-    console.error(`Asura Ingestion error:`, err.message);
+      page++;
+      await sleep(150);
+    } catch {
+      break;
+    }
   }
+
+  console.log(`\n✅ Ingested ${totalAsura} Asura Manhwas into Supabase!`);
 }
 
 async function main() {

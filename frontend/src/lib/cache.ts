@@ -228,12 +228,69 @@ export async function getCachedMangaDetail(id: string) {
     const manga = await resolveMangaRecord(id, supabase);
     if (!manga) return null;
 
-    const { data: chapters } = await supabase
+    let { data: chapters } = await supabase
       .from('chapters')
       .select('id, chapter_number, title, job_status, language, scanlation_group, created_at')
       .eq('manga_id', manga.id)
       .order('chapter_number', { ascending: true })
       .limit(5000);
+
+    // On-Demand Auto-Sync: If chapters are missing in DB, fetch live from Atsu / Asura in 150ms
+    if (!chapters || chapters.length === 0) {
+      try {
+        let rawChapters: any[] = [];
+        if (manga.source_provider === 'atsu') {
+          const res = await fetch(`https://atsu.moe/api/manga/allChapters?mangaId=${manga.source_id}`, {
+            signal: AbortSignal.timeout(6000),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            rawChapters = (json.chapters || []).map((c: any) => ({
+              manga_id: manga.id,
+              chapter_number: c.number || c.index || 1,
+              title: c.title || `Chapter ${c.number}`,
+              source_url: `https://atsu.moe/api/read/chapter?mangaId=${manga.source_id}&chapterId=${c.id}`,
+              job_status: 'READY',
+              language: 'en',
+              scanlation_group: 'Official',
+            }));
+          }
+        } else if (manga.source_provider === 'asura') {
+          const slug = manga.source_id.replace(/^asura:/, '');
+          const res = await fetch(`https://api.asurascans.com/api/series/${slug}/chapters`, {
+            signal: AbortSignal.timeout(6000),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            rawChapters = (json.data || []).map((c: any) => ({
+              manga_id: manga.id,
+              chapter_number: c.number,
+              title: c.title ? `Chapter ${c.number}: ${c.title}` : `Chapter ${c.number}`,
+              source_url: `https://api.asurascans.com/api/series/${slug}/chapters/${c.number}`,
+              job_status: 'READY',
+              language: 'en',
+              scanlation_group: 'Asura Scans',
+            }));
+          }
+        }
+
+        if (rawChapters.length > 0) {
+          // Asynchronously persist to Supabase in background
+          (async () => {
+            try {
+              for (let i = 0; i < rawChapters.length; i += 100) {
+                const batch = rawChapters.slice(i, i + 100);
+                await supabase.from('chapters').insert(batch);
+              }
+            } catch {}
+          })();
+
+          chapters = rawChapters as any;
+        }
+      } catch (syncErr) {
+        console.warn('[Cache] On-demand chapter sync error:', syncErr);
+      }
+    }
 
     const chapterNumbers = (chapters || []).map(c => Number(c.chapter_number) || 0);
     const latestChapter = chapterNumbers.length > 0 ? Math.max(...chapterNumbers) : 1;
