@@ -52,9 +52,12 @@ logs/
 coverage/
 .nyc_output/
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
 # Hugging Face Space build artifacts
-hf-worker/__pycache__/
-hf-worker/*.pyc
 hf-worker/.gradio/
 .vercel
 .env*
