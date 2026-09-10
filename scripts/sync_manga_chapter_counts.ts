@@ -5,7 +5,15 @@ import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!, {
+const supabaseUrl = process.env.SUPABASE_URL || 'https://lsdnqbfiytyonvmzurxj.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+if (!supabaseKey) {
+  console.warn('⚠️ [Sync] Missing SUPABASE_SERVICE_KEY in environment/secrets. Skipping run.');
+  process.exit(0);
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false },
   realtime: { transport: ws },
 });

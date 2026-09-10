@@ -114,6 +114,7 @@ export function AdSlot({
       iframe.style.display = "block";
       iframe.style.margin = "0 auto";
       iframe.style.maxWidth = "100%";
+      iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
 
       container.appendChild(iframe);
 
@@ -141,6 +142,9 @@ export function AdSlot({
               </head>
               <body>
                 <script type="text/javascript">
+                  try {
+                    window.open = function() { return null; };
+                  } catch (e) {}
                   atOptions = {
                     'key' : '${adKey}',
                     'format' : 'iframe',
@@ -162,6 +166,9 @@ export function AdSlot({
 
     return () => {
       container.innerHTML = "";
+      if (containerRef.current) {
+        containerRef.current.innerHTML = "";
+      }
     };
   }, [visible, variant, isMobile, placement, safeId]);
 
@@ -169,7 +176,7 @@ export function AdSlot({
 
   return (
     <aside
-      className={`mx-auto my-4 w-full max-w-4xl overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0E1422]/60 p-2.5 text-center shadow-lg transition-all min-h-[74px] md:min-h-[114px] flex flex-col justify-center items-center ${className}`}
+      className={`mx-auto my-4 w-full max-w-4xl overflow-hidden rounded-2xl bg-[#0E1422]/60 border border-white/[0.08] p-2.5 text-center shadow-lg transition-all min-h-[74px] md:min-h-[114px] flex flex-col justify-center items-center ${className}`}
       aria-label="Advertisement"
     >
       <p className="mb-1.5 text-center text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400 select-none">

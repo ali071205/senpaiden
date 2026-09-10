@@ -5,6 +5,11 @@ import { useState, useEffect } from "react";
 import { MangaCard } from "@/components/MangaCard";
 import { type Manga } from "@/lib/manga-data";
 import { Zap } from "lucide-react";
+import {
+  getIs18Plus,
+  isMatureManga,
+  AGE_RESTRICTION_UPDATED_EVENT,
+} from "@/lib/age-restriction";
 
 interface CatalogItem {
   slug: string;
@@ -24,7 +29,9 @@ export function PersonalizedFeedRow() {
     async function computePersonalizedFeed() {
       try {
         const json = await fetchApi<{ catalog?: CatalogItem[]; data?: CatalogItem[] }>("/api/catalog-vectors");
-        const catalog: CatalogItem[] = json?.catalog || json?.data || [];
+        const rawCatalog: CatalogItem[] = json?.catalog || json?.data || [];
+        const is18Plus = getIs18Plus();
+        const catalog = rawCatalog.filter((item) => is18Plus || !isMatureManga(item.genres));
         if (catalog.length === 0) {
           setIsLoaded(true);
           return;
@@ -146,6 +153,10 @@ export function PersonalizedFeedRow() {
     }
 
     computePersonalizedFeed();
+    window.addEventListener(AGE_RESTRICTION_UPDATED_EVENT, computePersonalizedFeed);
+    return () => {
+      window.removeEventListener(AGE_RESTRICTION_UPDATED_EVENT, computePersonalizedFeed);
+    };
   }, []);
 
   if (isLoaded && recommendations.length === 0) return null;

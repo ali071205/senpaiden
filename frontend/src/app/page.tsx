@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { MangaCard } from "@/components/MangaCard";
-import { AddToLibraryButton } from "@/components/AddToLibraryButton";
 import { HomeLibraryRow } from "@/components/HomeLibraryRow";
 import { PersonalizedFeedRow } from "@/components/PersonalizedFeedRow";
 import { ContinueReadingBubble } from "@/components/ContinueReadingBubble";
@@ -13,11 +12,16 @@ import { getLocalCatalogue, type CatalogueManga } from "@/lib/local-catalogue";
 // Server Component fetching live data from Cloudflare Worker / Next API
 export const revalidate = 60; // Edge Cache for 60 seconds
 
+import { cookies } from "next/headers";
 import { getCachedMangaList } from "@/lib/cache";
+import { AGE_RESTRICTION_COOKIE, isMatureManga } from "@/lib/age-restriction";
 
 export default async function Home({ searchParams }: { searchParams?: Promise<{ q?: string }> }) {
   const resolvedSearchParams = await searchParams;
   const searchQuery = resolvedSearchParams?.q?.trim() || "";
+
+  const cookieStore = await cookies();
+  const allow18Plus = cookieStore.get(AGE_RESTRICTION_COOKIE)?.value === "true";
   
   let mangas: CatalogueManga[] = [];
   try {
@@ -25,6 +29,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
       q: searchQuery || undefined,
       page: 1,
       limit: 24,
+      allow18Plus,
     });
     if (result.data && result.data.length > 0) {
       mangas = result.data as CatalogueManga[];
@@ -34,13 +39,18 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
   }
   if (!mangas.length) {
     const local = await getLocalCatalogue();
-    mangas = (searchQuery ? local.filter((manga) => manga.title.toLowerCase().includes(searchQuery.toLowerCase())) : local).slice(0, 24);
+    let filteredLocal = local;
+    if (!allow18Plus) {
+      filteredLocal = filteredLocal.filter((m) => !isMatureManga(m.genres));
+    }
+    mangas = (searchQuery ? filteredLocal.filter((manga) => manga.title.toLowerCase().includes(searchQuery.toLowerCase())) : filteredLocal).slice(0, 24);
   }
 
   // Map API data to the UI format temporarily if it's missing fields
   const seenIds = new Set<string>();
   const uniqueMangas = mangas.filter((m) => {
     if (!m.id || seenIds.has(m.id)) return false;
+    if (!allow18Plus && isMatureManga(m.genres)) return false;
     seenIds.add(m.id);
     return true;
   });

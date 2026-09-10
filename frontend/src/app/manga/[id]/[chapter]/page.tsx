@@ -6,6 +6,8 @@ import { getApiUrl } from "@/lib/api";
 import { getLocalCatalogue } from "@/lib/local-catalogue";
 import { chapterCanonical, mangaCanonical, SITE_NAME, absoluteUrl } from "@/lib/seo";
 
+import { getCachedMangaDetail } from "@/lib/cache";
+
 // Cache immutable chapters forever. Stale chapters are cached for 60s at the edge.
 export const revalidate = 31536000;
 
@@ -15,20 +17,21 @@ export async function generateMetadata({
   params: Promise<{ id: string; chapter: string }>;
 }): Promise<Metadata> {
   const { id, chapter } = await params;
-  const apiUrl = getApiUrl();
 
   let title = "Manga";
   let coverUrl = absoluteUrl("/icon.png");
 
   try {
-    const res = await fetch(`${apiUrl}/api/manga/${id}`, {
-      signal: AbortSignal.timeout(8000),
-      next: { revalidate: 3600 },
-    });
-    if (res.ok) {
-      const data = await res.json();
+    const data = await getCachedMangaDetail(id);
+    if (data) {
       title = data.title || title;
       if (data.cover_url) coverUrl = data.cover_url;
+    } else {
+      const local = (await getLocalCatalogue()).find((item) => item.id === id);
+      if (local) {
+        title = local.title;
+        if (local.cover_url) coverUrl = local.cover_url;
+      }
     }
   } catch {
     const local = (await getLocalCatalogue()).find((item) => item.id === id);

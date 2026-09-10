@@ -41,12 +41,12 @@ export function ReaderImage({ src, width, height, priority = false, blurhash, co
     const alignClass = getAlignClass();
     if (pageFit === "fit-height") {
       // 144px accounts for pt-16 (64px) header and pb-20 (80px) footer to perfectly fit without scrollbars
-      return `max-h-[calc(100dvh-144px)] w-auto max-w-full ${alignClass} object-contain block m-0 p-0 border-0 align-bottom`;
+      return `max-h-[calc(100dvh-144px)] w-auto max-w-full ${alignClass} object-contain block my-0 p-0 border-0 align-bottom`;
     }
     if (pageFit === "original") {
-      return `w-auto max-w-full h-auto ${alignClass} block m-0 p-0 border-0 align-bottom`;
+      return `w-auto max-w-full h-auto ${alignClass} block my-0 p-0 border-0 align-bottom`;
     }
-    return `w-full max-w-full h-auto ${alignClass} block m-0 p-0 border-0 align-bottom`;
+    return `w-full max-w-full h-auto ${alignClass} block my-0 p-0 border-0 align-bottom`;
   };
 
   const getContainerFitClass = () => {
@@ -60,13 +60,17 @@ export function ReaderImage({ src, width, height, priority = false, blurhash, co
     if (pageFit === "original") {
       return `w-full max-w-full flex ${justifyClass}`;
     }
-    return containerClassName || "max-w-[800px]";
+    return containerClassName || `max-w-[800px] w-full flex ${justifyClass}`;
   };
 
   return (
     <div 
-      className={cn("relative w-full mx-auto bg-black leading-none select-none m-0 p-0 border-0", getContainerFitClass())}
-      style={!isLoaded ? { aspectRatio: `${width} / ${height}` } : undefined}
+      className={cn("relative w-full mx-auto bg-black leading-none select-none my-0 p-0 border-0 flex justify-center items-center", getContainerFitClass())}
+      style={{
+        ...(!isLoaded ? { aspectRatio: `${width} / ${height}` } : {}),
+        marginLeft: align === "left" ? "0" : align === "right" ? "auto" : "auto",
+        marginRight: align === "left" ? "auto" : align === "right" ? "0" : "auto",
+      }}
     >
       {/* Loading Skeleton / Blurhash Placeholder */}
       {!isLoaded && !hasError && (
@@ -118,6 +122,10 @@ export function ReaderImage({ src, width, height, priority = false, blurhash, co
             "transition-opacity duration-300 relative z-10",
             isLoaded ? "opacity-100" : "opacity-0"
           )}
+          style={{
+            marginLeft: align === "left" ? "0" : align === "right" ? "auto" : "auto",
+            marginRight: align === "left" ? "auto" : align === "right" ? "0" : "auto",
+          }}
           onLoad={() => setIsLoaded(true)}
           onError={() => {
             setIsLoaded(true);

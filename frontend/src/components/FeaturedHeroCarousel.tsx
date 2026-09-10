@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Play, Bookmark, Star, Sparkles, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Star, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 
 export interface HeroMangaItem {
   slug: string;
@@ -123,6 +123,7 @@ export function FeaturedHeroCarousel({ items }: FeaturedHeroCarouselProps) {
             <div className="flex items-center gap-2.5">
               <Link
                 href={`/manga/${activeManga.slug}/${activeManga.latestChapter || 1}`}
+                prefetch={false}
                 className="inline-flex items-center gap-1.5 rounded-xl sd-gradient px-4 py-2 text-xs sm:text-sm font-black text-white shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all"
               >
                 <Play className="h-3.5 w-3.5 fill-white" />
@@ -131,6 +132,7 @@ export function FeaturedHeroCarousel({ items }: FeaturedHeroCarouselProps) {
 
               <Link
                 href={`/manga/${activeManga.slug}`}
+                prefetch={false}
                 className="hidden sm:inline-flex items-center gap-1 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-3.5 py-2 text-xs font-bold text-white transition-all"
               >
                 Details

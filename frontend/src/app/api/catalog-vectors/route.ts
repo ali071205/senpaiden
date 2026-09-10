@@ -1,9 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getCachedCatalogVectors } from '@/lib/cache';
+import { AGE_RESTRICTION_COOKIE } from '@/lib/age-restriction';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const catalog = await getCachedCatalogVectors();
+    const allow18Plus = req.cookies.get(AGE_RESTRICTION_COOKIE)?.value === 'true';
+    const catalog = await getCachedCatalogVectors(allow18Plus);
     return NextResponse.json(
       { catalog },
       {

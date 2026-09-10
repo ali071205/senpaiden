@@ -71,17 +71,36 @@ export async function GET(
         }
 
         if (rawChapters.length > 0) {
-          // Persist to Supabase asynchronously
+          // Strictly deduplicate by chapter_number
+          const uniqueMap = new Map<number, any>();
+          for (const raw of rawChapters) {
+            const num = Number(raw.chapter_number);
+            if (!uniqueMap.has(num)) {
+              uniqueMap.set(num, raw);
+            } else {
+              const prev = uniqueMap.get(num)!;
+              const prevHasTitle = prev.title && !prev.title.match(/^Chapter\s+\d+$/i);
+              const rawHasTitle = raw.title && !raw.title.match(/^Chapter\s+\d+$/i);
+              if (!prevHasTitle && rawHasTitle) {
+                uniqueMap.set(num, raw);
+              }
+            }
+          }
+          const deduplicatedList = Array.from(uniqueMap.values()).sort(
+            (a, b) => Number(a.chapter_number) - Number(b.chapter_number)
+          );
+
+          // Persist to Supabase asynchronously in background
           (async () => {
             try {
-              for (let i = 0; i < rawChapters.length; i += 100) {
-                const batch = rawChapters.slice(i, i + 100);
+              for (let i = 0; i < deduplicatedList.length; i += 200) {
+                const batch = deduplicatedList.slice(i, i + 200);
                 await supabase.from('chapters').insert(batch);
               }
             } catch {}
           })();
 
-          chapters = rawChapters as any;
+          chapters = deduplicatedList as any;
         }
       } catch (err) {
         console.warn('[Chapter Route] On-demand chapter sync error:', err);
@@ -345,14 +364,26 @@ export async function GET(
       return p.r2_keys.some((k: string) => typeof k === 'string' && k.length > 0);
     });
 
+    // Guarantee strictly unique chapter numbers for reader navigation
+    const dedupedNavMap = new Map<number, any>();
+    for (const c of chapters || []) {
+      const num = Number(c.chapter_number);
+      if (!dedupedNavMap.has(num)) {
+        dedupedNavMap.set(num, c);
+      }
+    }
+    const finalChapters = Array.from(dedupedNavMap.values()).sort(
+      (a, b) => Number(a.chapter_number) - Number(b.chapter_number)
+    );
+
     const available_languages = Array.from(
-      new Set((chapters || []).map((c) => (c as { language?: string }).language).filter(Boolean))
+      new Set((finalChapters || []).map((c) => (c as { language?: string }).language).filter(Boolean))
     );
 
     return NextResponse.json({
       manga,
       chapter,
-      chapters: chapters || [],
+      chapters: finalChapters,
       pages: sanitizedPages.length > 0 ? sanitizedPages : (pages || []),
       available_languages: available_languages.length > 0 ? available_languages : ['en'],
     });

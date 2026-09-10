@@ -19,7 +19,7 @@ export const ADSTERRA_DESKTOP_KEY = "2de4d4b4a2f675e5880e6d1004852c8b"; // 728x9
 export const ADSTERRA_MOBILE_KEY = "e595c21e4de14999cdb8003e66163d4b";   // 320x50
 export const ADSTERRA_NATIVE_CONTAINER = "container-d151fe0fbadd628be5d88b715d6a1e68";
 export const ADSTERRA_NATIVE_SRC = "https://pl30953537.effectivecpmnetwork.com/d151fe0fbadd628be5d88b715d6a1e68/invoke.js";
-export const ADSTERRA_SMARTLINK_URL = process.env.NEXT_PUBLIC_ADSTERRA_SMARTLINK_URL || "https://www.profitableratecpmnetwork.com/jb3rsspv0?key=6f199363c5a64c848cdb187fbb9d47f9";
+export const ADSTERRA_SMARTLINK_URL = process.env.NEXT_PUBLIC_ADSTERRA_SMARTLINK_URL || "";
 
 export const AD_PLACEMENT_ENABLED: Record<AdPlacement, boolean> = {
   "home-feed": process.env.NEXT_PUBLIC_ADS_PLACEMENT_HOME !== "false",

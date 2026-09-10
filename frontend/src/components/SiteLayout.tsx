@@ -10,10 +10,12 @@ import { getLevel, getReaderProgression, PROGRESSION_UPDATED_EVENT } from "@/lib
 import { AUTH_UPDATED_EVENT, getStoredAccount, isSignedIn } from "@/lib/auth-storage";
 import { OPEN_CONSENT_EVENT } from "@/lib/consent";
 import { StickyAnchorAd } from "@/components/StickyAnchorAd";
+import { AgeRestrictionToggle } from "@/components/AgeRestrictionToggle";
+import { AgeConfirmationModal } from "@/components/AgeConfirmationModal";
 import {
   Home, LayoutGrid, RefreshCw, Bookmark, History,
   Search, Bell,
-  ChevronRight, Crown, Shield, UserRound,
+  ChevronRight, Shield, UserRound,
   Moon, Sun, Laptop
 } from "lucide-react";
 
@@ -262,6 +264,9 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
                    <Shield size={12} />
                  </Link>
               </div>
+              <div className="mt-3 pt-2 border-t border-white/5">
+                <AgeRestrictionToggle variant="compact" />
+              </div>
            </div>
         </div>
       </aside>
@@ -350,9 +355,45 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
         {/* PAGE CONTENT */}
         <main className={`flex-1 overflow-x-hidden ${!isReader ? "pt-14 md:pt-0 pb-36 md:pb-16" : ""} w-full`}>
           {children}
-          {!isReader && <footer className="mx-4 mt-10 border-t border-white/5 px-2 py-8 md:mx-8 md:flex md:items-center md:justify-between"><p className="text-xs text-zinc-600">© 2026 SenpaiDen. Reader-first manga discovery.</p><nav aria-label="Legal and company links" className="mt-4 flex flex-wrap gap-x-5 gap-y-3 md:mt-0">{[{ label: "About", href: "/about" }, { label: "Partners", href: "/partners" }, { label: "Contact", href: "/contact" }, { label: "Privacy", href: "/privacy" }, { label: "Cookies", href: "/cookies" }, { label: "Affiliate disclosure", href: "/affiliate-disclosure" }, { label: "Terms", href: "/terms" }, { label: "Copyright", href: "/copyright" }].map((item) => <Link key={item.href} href={item.href} className="min-h-11 py-3 text-xs font-bold text-zinc-500 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">{item.label}</Link>)}<button onClick={() => window.dispatchEvent(new Event(OPEN_CONSENT_EVENT))} className="min-h-11 py-3 text-xs font-bold text-zinc-500 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">Privacy choices</button></nav></footer>}
+          {!isReader && (
+            <footer className="mx-4 mt-10 border-t border-white/5 px-2 py-8 md:mx-8 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <p className="text-xs text-zinc-600">© 2026 SenpaiDen. Reader-first manga discovery.</p>
+                <AgeRestrictionToggle variant="default" />
+              </div>
+              <nav aria-label="Legal and company links" className="flex flex-wrap gap-x-5 gap-y-3">
+                {[
+                  { label: "About", href: "/about" },
+                  { label: "Partners", href: "/partners" },
+                  { label: "Contact", href: "/contact" },
+                  { label: "Privacy", href: "/privacy" },
+                  { label: "Cookies", href: "/cookies" },
+                  { label: "Affiliate disclosure", href: "/affiliate-disclosure" },
+                  { label: "Terms", href: "/terms" },
+                  { label: "Copyright", href: "/copyright" },
+                ].map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="min-h-11 py-3 text-xs font-bold text-zinc-500 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+                <button
+                  onClick={() => window.dispatchEvent(new Event(OPEN_CONSENT_EVENT))}
+                  className="min-h-11 py-3 text-xs font-bold text-zinc-500 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                >
+                  Privacy choices
+                </button>
+              </nav>
+            </footer>
+          )}
         </main>
       </div>
+
+      {/* Global Age Verification Modal */}
+      <AgeConfirmationModal />
 
       {/* Floating Status Bar / Bottom Anchor Ad Banner */}
       {!isReader && <StickyAnchorAd />}

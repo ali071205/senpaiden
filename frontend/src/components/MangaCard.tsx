@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { coverGradient, type Manga } from "@/lib/manga-data";
+import { isMatureManga } from "@/lib/age-restriction";
 
 interface Props {
   manga: Manga;
@@ -16,6 +17,7 @@ export function MangaCard({ manga, showChapter, className = "" }: Props) {
   return (
     <Link
       href={`/manga/${manga.slug}`}
+      prefetch={false}
       className={`group relative block overflow-hidden rounded-xl border border-white/5 bg-[#101016] transition-all duration-300 hover:border-[#8B5CF6]/40 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-10px_rgba(139,92,246,0.5)] ${className}`}
     >
       <div
@@ -46,6 +48,12 @@ export function MangaCard({ manga, showChapter, className = "" }: Props) {
         {manga.tag && (
           <div className="absolute left-2 top-2 rounded-md sd-gradient px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow-lg">
             {manga.tag}
+          </div>
+        )}
+
+        {isMatureManga(manga.genres) && (
+          <div className="absolute right-2 top-2 rounded-md bg-red-600/90 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-lg border border-red-400/30">
+            18+
           </div>
         )}
 

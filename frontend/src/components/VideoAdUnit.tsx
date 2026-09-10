@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Play, Pause, Volume2, VolumeX, Sparkles, ExternalLink } from "lucide-react";
-import { ADS_ENABLED, canServeAdsInBrowser, ADSTERRA_SMARTLINK_URL } from "@/lib/monetization";
+import { ADS_ENABLED, canServeAdsInBrowser } from "@/lib/monetization";
 import { getConsent } from "@/lib/consent";
 
 interface VideoAdUnitProps {
@@ -17,7 +17,7 @@ interface VideoAdUnitProps {
 export function VideoAdUnit({
   title = "Discover Next-Gen Anime Gaming",
   sponsorName = "Epic Anime Universe",
-  sponsorUrl = ADSTERRA_SMARTLINK_URL || "https://senpaiden.vercel.app",
+  sponsorUrl = "#",
   posterSrc = "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80",
   className = "",
 }: VideoAdUnitProps) {
@@ -95,9 +95,12 @@ export function VideoAdUnit({
 
           <a
             href={sponsorUrl}
-            target="_blank"
+            target={sponsorUrl === "#" ? undefined : "_blank"}
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary hover:bg-red-500 text-xs font-black text-white shadow-lg shadow-primary/30 transition active:scale-95"
+            onClick={(e) => {
+              if (sponsorUrl === "#") e.preventDefault();
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary hover:bg-red-500 text-xs font-black text-white shadow-lg shadow-primary/30 transition active:scale-95 cursor-pointer"
           >
             <span>Learn More</span>
             <ExternalLink className="h-3.5 w-3.5" />
@@ -121,9 +124,12 @@ export function VideoAdUnit({
         </div>
         <a
           href={sponsorUrl}
-          target="_blank"
+          target={sponsorUrl === "#" ? undefined : "_blank"}
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline shrink-0"
+          onClick={(e) => {
+            if (sponsorUrl === "#") e.preventDefault();
+          }}
+          className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline shrink-0 cursor-pointer"
         >
           Visit Partner <ExternalLink className="h-3 w-3" />
         </a>

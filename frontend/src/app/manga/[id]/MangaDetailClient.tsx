@@ -6,12 +6,19 @@ import { useRouter } from "next/navigation";
 import {
   Star, Bookmark, Play, ChevronRight, BookOpen, Eye,
   User, Palette, TrendingUp, ThumbsUp, Share2, ChevronDown, ArrowUpDown,
-  Zap, Lock, Unlock, Check, MessageSquarePlus, Send
+  Zap, Unlock, Check, MessageSquarePlus, Send,
+  ShieldAlert
 } from "lucide-react";
 import { AdSlot } from "@/components/AdSlot";
 import { VideoAdUnit } from "@/components/VideoAdUnit";
-import { isChapterFastPass, isChapterUnlocked, getUnlockedChapters, FASTPASS_UPDATED_EVENT } from "@/lib/fastpass";
+import { isChapterFastPass, getUnlockedChapters, FASTPASS_UPDATED_EVENT } from "@/lib/fastpass";
 import { FastPassUnlockModal } from "@/components/FastPassUnlockModal";
+import {
+  isMatureManga,
+  getIs18Plus,
+  openAgeVerificationModal,
+  AGE_RESTRICTION_UPDATED_EVENT,
+} from "@/lib/age-restriction";
 
 const CHUNK_SIZE = 50;
 
@@ -79,6 +86,24 @@ export function MangaDetailClient({
   const [newReviewRating, setNewReviewRating] = useState(10);
   const [newReviewName, setNewReviewName] = useState("");
   const [showReviewForm, setShowReviewForm] = useState(false);
+
+  // Age restriction check
+  const isMature = useMemo(() => isMatureManga(manga.genres), [manga.genres]);
+  const [is18Plus, setIs18PlusState] = useState(false);
+  const [hasCheckedAge, setHasCheckedAge] = useState(false);
+
+  useEffect(() => {
+    setIs18PlusState(getIs18Plus());
+    setHasCheckedAge(true);
+
+    const sync = () => setIs18PlusState(getIs18Plus());
+    window.addEventListener(AGE_RESTRICTION_UPDATED_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(AGE_RESTRICTION_UPDATED_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
 
   const startChapter = useMemo(() => {
     if (!chapters || chapters.length === 0) return 1;
@@ -184,9 +209,23 @@ export function MangaDetailClient({
     } catch {}
   };
 
-  // Sorted chapter list based on sort order
+  // Sorted chapter list based on sort order (strictly unique by chapter_number)
   const sortedChapters = useMemo(() => {
-    const list = [...chapters];
+    const map = new Map<number, DetailChapter>();
+    for (const ch of chapters || []) {
+      const num = Number(ch.chapter_number);
+      if (!map.has(num)) {
+        map.set(num, ch);
+      } else {
+        const prev = map.get(num)!;
+        const prevHasTitle = prev.title && !prev.title.match(/^Chapter\s+\d+$/i);
+        const curHasTitle = ch.title && !ch.title.match(/^Chapter\s+\d+$/i);
+        if (!prevHasTitle && curHasTitle) {
+          map.set(num, ch);
+        }
+      }
+    }
+    const list = Array.from(map.values());
     list.sort((a, b) => {
       const aNum = Number(a.chapter_number) || 0;
       const bNum = Number(b.chapter_number) || 0;
@@ -258,7 +297,40 @@ export function MangaDetailClient({
     } catch {}
   };
 
-
+  if (isMature && hasCheckedAge && !is18Plus) {
+    return (
+      <div className="text-foreground font-exo pb-16 md:pb-8 max-w-2xl mx-auto px-4 pt-16 text-center">
+        <div className="relative overflow-hidden rounded-3xl border border-red-500/30 bg-[#0F1117] p-8 sm:p-12 shadow-[0_0_50px_rgba(239,68,68,0.2)]">
+          <div className="mx-auto mb-4 grid h-20 w-20 place-items-center rounded-3xl bg-red-500/10 border border-red-500/30 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.3)]">
+            <ShieldAlert size={40} />
+          </div>
+          <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-black uppercase tracking-wider text-white shadow-md">
+            18+ Age Restricted
+          </span>
+          <h1 className="mt-4 text-2xl font-black text-white sm:text-3xl">
+            Age Verification Required
+          </h1>
+          <p className="mx-auto mt-3 max-w-md text-sm text-zinc-400">
+            &quot;{manga.title}&quot; is classified as mature/adult (18+) content. You must be at least 18 years old to access this title.
+          </p>
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <button
+              onClick={openAgeVerificationModal}
+              className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-red-600 to-red-500 px-6 py-3.5 text-sm font-black text-white shadow-[0_0_20px_rgba(239,68,68,0.4)] hover:brightness-110 active:scale-[0.98] transition-all"
+            >
+              Verify Age (18+)
+            </button>
+            <Link
+              href="/"
+              className="w-full sm:w-auto rounded-2xl border border-white/10 bg-white/5 px-6 py-3.5 text-sm font-bold text-zinc-400 hover:bg-white/10 hover:text-white transition-all"
+            >
+              Return to Home
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="text-foreground font-exo pb-16 md:pb-8">

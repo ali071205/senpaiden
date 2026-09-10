@@ -8,7 +8,7 @@ import { ReaderImage } from "@/components/ReaderImage";
 import { RecommendationsRow } from "@/components/RecommendationsRow";
 import { StaleBanner } from "@/components/StaleBanner";
 import { AdSlot } from "@/components/AdSlot";
-import { isChapterFastPass, isChapterUnlocked, FASTPASS_UPDATED_EVENT } from "@/lib/fastpass";
+import { isChapterUnlocked, FASTPASS_UPDATED_EVENT } from "@/lib/fastpass";
 import { FastPassUnlockModal } from "@/components/FastPassUnlockModal";
 import { saveHistoryLocal } from "@/lib/history-storage";
 import { fetchApi } from "@/lib/api-client";
@@ -168,8 +168,17 @@ export function MangaReaderContainer({
     overscan: 5,
   });
 
-  // Sorted chapters ascending
-  const sortedChapters = [...chapters].sort((a, b) => a.chapter_number - b.chapter_number);
+  // Sorted chapters ascending (strictly deduplicated by chapter_number)
+  const sortedChapters = useMemo(() => {
+    const map = new Map<number, ChapterMetadata>();
+    for (const c of chapters || []) {
+      const num = Number(c.chapter_number);
+      if (!map.has(num)) {
+        map.set(num, c);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.chapter_number - b.chapter_number);
+  }, [chapters]);
   const currentChapterNum = parseFloat(chapterNumber);
   const currentChapterIndex = sortedChapters.findIndex(c => c.chapter_number === currentChapterNum);
   
@@ -617,7 +626,7 @@ export function MangaReaderContainer({
       </div>
 
       {/* Main Content Area */}
-      <div className="w-full min-h-screen cursor-pointer" onClick={handleContainerClick}>
+      <div className="w-full min-h-screen cursor-pointer flex flex-col items-center justify-start" onClick={handleContainerClick}>
         {slices.length === 0 ? (
           /* Empty / Ingestion Pending State */
           <div className="w-full min-h-[60vh] flex flex-col items-center justify-center p-8 text-center">
@@ -647,35 +656,39 @@ export function MangaReaderContainer({
           /* Webtoon Strip Mode: Seamless Virtualized list */
           <div 
             className={cn(
-              "w-full relative mx-auto bg-black m-0 p-0 border-0 leading-none",
+              "w-full relative bg-black my-0 p-0 border-0 leading-none flex flex-col items-center",
               pageFit === "original" ? "max-w-[1000px]" : "max-w-[800px]"
             )}
-            style={{ height: `${virtualizer.getTotalSize()}px` }}
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              marginLeft: "auto",
+              marginRight: "auto",
+            }}
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const slice = slices[virtualItem.index];
               const imgUrl = getSliceUrl(r2BaseUrl, slice.key);
-  return (
-    <div
-      key={virtualItem.key} 
-      data-index={virtualItem.index} 
-      ref={virtualizer.measureElement}
-      className="absolute top-0 left-0 w-full m-0 p-0 border-0 leading-none flex justify-center"
-      style={{
-        transform: `translateY(${virtualItem.start}px)`,
-      }}
-    >
-      <ReaderImage
-        src={imgUrl}
-        width={slice.width}
-        height={slice.height}
-        priority={virtualItem.index < 3}
-        blurhash={slice.blurhash}
-        pageFit={pageFit}
-      />
-    </div>
-  );
-})}
+              return (
+                <div
+                  key={virtualItem.key} 
+                  data-index={virtualItem.index} 
+                  ref={virtualizer.measureElement}
+                  className="absolute top-0 left-0 w-full my-0 p-0 border-0 leading-none flex items-center justify-center"
+                  style={{
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  <ReaderImage
+                    src={imgUrl}
+                    width={slice.width}
+                    height={slice.height}
+                    priority={virtualItem.index < 3}
+                    blurhash={slice.blurhash}
+                    pageFit={pageFit}
+                  />
+                </div>
+              );
+            })}
           </div>
         ) : readingMode === "single" || isMobile ? (
           /* Single Page View (Renders full stacked page) */

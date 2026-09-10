@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase';
+import { MATURE_GENRES } from './age-restriction';
 
 interface CacheEntry<T> {
   data: T;
@@ -6,6 +7,7 @@ interface CacheEntry<T> {
 }
 
 const memoryCache = new Map<string, CacheEntry<any>>();
+const maxChapterMemCache = new Map<string, number>();
 
 export function getCached<T>(key: string): T | null {
   const entry = memoryCache.get(key);
@@ -36,8 +38,9 @@ export async function getCachedMangaList(params: {
   sort?: string;
   page?: number;
   limit?: number;
+  allow18Plus?: boolean;
 }) {
-  const { q = '', genre = '', sort = '', page = 1, limit = 24 } = params;
+  const { q = '', genre = '', sort = '', page = 1, limit = 24, allow18Plus = false } = params;
 
   // Normalize included genres array
   const incList = Array.isArray(params.included)
@@ -46,12 +49,16 @@ export async function getCachedMangaList(params: {
   const normalizedIncluded = Array.from(new Set(incList.map((g) => g.trim()).filter(Boolean))).sort();
 
   // Normalize excluded genres array
-  const excList = Array.isArray(params.excluded)
+  const rawExcList = Array.isArray(params.excluded)
     ? params.excluded
     : (params.excluded ? params.excluded.split(',').map((s) => s.trim()).filter(Boolean) : []);
+  const excList = [...rawExcList];
+  if (!allow18Plus) {
+    excList.push(...MATURE_GENRES);
+  }
   const normalizedExcluded = Array.from(new Set(excList.map((g) => g.trim()).filter(Boolean))).sort();
 
-  const cacheKey = `manga_list:q=${q}:genre=${genre}:inc=${normalizedIncluded.join(',')}:exc=${normalizedExcluded.join(',')}:sort=${sort}:p=${page}:l=${limit}`;
+  const cacheKey = `manga_list:q=${q}:genre=${genre}:inc=${normalizedIncluded.join(',')}:exc=${normalizedExcluded.join(',')}:sort=${sort}:p=${page}:l=${limit}:adult=${allow18Plus ? 1 : 0}`;
   const cached = getCached<{ data: any[]; total: number; page: number; limit: number }>(cacheKey);
   if (cached) return cached;
 
@@ -97,32 +104,47 @@ export async function getCachedMangaList(params: {
     return { data: [], total: 0, page, limit };
   }
 
-  let enrichedData = data || [];
+  // Deduplicate by normalized title so identical titles NEVER appear twice in search/catalog
+  const seenTitles = new Set<string>();
+  const rawList = data || [];
+  const dedupedData: any[] = [];
+  for (const item of rawList) {
+    const norm = (item.title || '').trim().toLowerCase();
+    if (!seenTitles.has(norm)) {
+      seenTitles.add(norm);
+      dedupedData.push(item);
+    }
+  }
+
+  let enrichedData = dedupedData;
   if (enrichedData.length > 0) {
     try {
       const mangaIds = enrichedData.map((m: any) => m.id);
-      const { data: chapters } = await supabase
-        .from('chapters')
-        .select('manga_id, chapter_number')
-        .in('manga_id', mangaIds);
+      const neededIds = mangaIds.filter((id: string) => !maxChapterMemCache.has(id));
 
-      const maxMap = new Map<string, number>();
-      for (const ch of chapters || []) {
-        const current = maxMap.get(ch.manga_id) || 0;
-        if (ch.chapter_number > current) {
-          maxMap.set(ch.manga_id, ch.chapter_number);
+      if (neededIds.length > 0) {
+        const { data: chapters } = await supabase
+          .from('chapters')
+          .select('manga_id, chapter_number')
+          .in('manga_id', neededIds);
+
+        for (const ch of chapters || []) {
+          const current = maxChapterMemCache.get(ch.manga_id) || 0;
+          if (ch.chapter_number > current) {
+            maxChapterMemCache.set(ch.manga_id, ch.chapter_number);
+          }
         }
       }
 
       enrichedData = enrichedData.map((m: any) => ({
         ...m,
-        latest_chapter_number: maxMap.get(m.id) || m.title_i18n?.latest_chapter || m.title_i18n?.total_chapters || 1,
+        latest_chapter_number: maxChapterMemCache.get(m.id) || m.title_i18n?.latest_chapter || m.title_i18n?.total_chapters || 1,
       }));
     } catch {}
   }
 
   const result = { data: enrichedData, total: count || 0, page, limit };
-  setCached(cacheKey, result, 120); // Cache for 2 minutes
+  setCached(cacheKey, result, 300); // Cache for 5 minutes
   return result;
 }
 
@@ -153,8 +175,8 @@ export async function getCachedGenres() {
   return STANDARD_GENRES;
 }
 
-export async function getCachedCatalogVectors() {
-  const cacheKey = 'catalog_vectors_data';
+export async function getCachedCatalogVectors(allow18Plus: boolean = false) {
+  const cacheKey = `catalog_vectors_data:adult=${allow18Plus ? 1 : 0}`;
   const cached = getCached<any[]>(cacheKey);
   if (cached) return cached;
 
@@ -162,27 +184,36 @@ export async function getCachedCatalogVectors() {
   if (!supabase) return [];
 
   try {
-    const { data: initialItems, error } = await supabase
+    let query: any = supabase
       .from('manga')
       .select('id, title, cover_url, status, genres, title_i18n')
       .neq('title', 'm')
-      .not('cover_url', 'is', null)
+      .not('cover_url', 'is', null);
+
+    if (!allow18Plus) {
+      query = query.not('genres', 'ov', `{${MATURE_GENRES.join(',')}}`);
+    }
+
+    const { data: initialItems, error } = await query
       .order('updated_at', { ascending: false })
       .limit(60);
 
     if (error || !initialItems) return [];
 
     const mangaIds = initialItems.map((m: any) => m.id);
-    const { data: chapters } = await supabase
-      .from('chapters')
-      .select('manga_id, chapter_number')
-      .in('manga_id', mangaIds);
+    const neededIds = mangaIds.filter((id: string) => !maxChapterMemCache.has(id));
 
-    const maxMap = new Map<string, number>();
-    for (const ch of chapters || []) {
-      const current = maxMap.get(ch.manga_id) || 0;
-      if (ch.chapter_number > current) {
-        maxMap.set(ch.manga_id, ch.chapter_number);
+    if (neededIds.length > 0) {
+      const { data: chapters } = await supabase
+        .from('chapters')
+        .select('manga_id, chapter_number')
+        .in('manga_id', neededIds);
+
+      for (const ch of chapters || []) {
+        const current = maxChapterMemCache.get(ch.manga_id) || 0;
+        if (ch.chapter_number > current) {
+          maxChapterMemCache.set(ch.manga_id, ch.chapter_number);
+        }
       }
     }
 
@@ -192,7 +223,7 @@ export async function getCachedCatalogVectors() {
       cover_url: item.cover_url,
       status: item.status,
       genres: item.genres,
-      latest_chapter_number: maxMap.get(item.id) || item.title_i18n?.latest_chapter || item.title_i18n?.total_chapters || 1,
+      latest_chapter_number: maxChapterMemCache.get(item.id) || item.title_i18n?.latest_chapter || item.title_i18n?.total_chapters || 1,
       client_vector: [1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0],
     }));
 
@@ -272,14 +303,14 @@ export async function getCachedMangaDetail(id: string) {
         let rawChapters: any[] = [];
         if (manga.source_provider === 'atsu') {
           const res = await fetch(`https://atsu.moe/api/manga/allChapters?mangaId=${manga.source_id}`, {
-            signal: AbortSignal.timeout(6000),
+            signal: AbortSignal.timeout(2500),
           });
           if (res.ok) {
             const json = await res.json();
             rawChapters = (json.chapters || []).map((c: any) => ({
               manga_id: manga.id,
-              chapter_number: c.number || c.index || 1,
-              title: c.title || `Chapter ${c.number}`,
+              chapter_number: c.number !== undefined && c.number !== null ? c.number : (c.index || 1),
+              title: c.title || `Chapter ${c.number ?? c.index ?? 1}`,
               source_url: `https://atsu.moe/api/read/chapter?mangaId=${manga.source_id}&chapterId=${c.id}`,
               job_status: 'READY',
               language: 'en',
@@ -289,7 +320,7 @@ export async function getCachedMangaDetail(id: string) {
         } else if (manga.source_provider === 'asura') {
           const slug = manga.source_id.replace(/^asura:/, '');
           const res = await fetch(`https://api.asurascans.com/api/series/${slug}/chapters`, {
-            signal: AbortSignal.timeout(6000),
+            signal: AbortSignal.timeout(2500),
           });
           if (res.ok) {
             const json = await res.json();
@@ -306,21 +337,61 @@ export async function getCachedMangaDetail(id: string) {
         }
 
         if (rawChapters.length > 0) {
-          // Asynchronously persist to Supabase in background
+          // Strictly deduplicate by chapter_number: keep highest quality / English
+          const uniqueMap = new Map<number, any>();
+          for (const raw of rawChapters) {
+            const num = Number(raw.chapter_number);
+            if (!uniqueMap.has(num)) {
+              uniqueMap.set(num, raw);
+            } else {
+              const prev = uniqueMap.get(num)!;
+              const prevHasTitle = prev.title && !prev.title.match(/^Chapter\s+\d+$/i);
+              const rawHasTitle = raw.title && !raw.title.match(/^Chapter\s+\d+$/i);
+              if (!prevHasTitle && rawHasTitle) {
+                uniqueMap.set(num, raw);
+              }
+            }
+          }
+          const deduplicatedList = Array.from(uniqueMap.values()).sort(
+            (a, b) => Number(a.chapter_number) - Number(b.chapter_number)
+          );
+
+          // Asynchronously persist deduplicated chapters to Supabase in background
           (async () => {
             try {
-              for (let i = 0; i < rawChapters.length; i += 100) {
-                const batch = rawChapters.slice(i, i + 100);
+              for (let i = 0; i < deduplicatedList.length; i += 200) {
+                const batch = deduplicatedList.slice(i, i + 200);
                 await supabase.from('chapters').insert(batch);
               }
             } catch {}
           })();
 
-          chapters = rawChapters as any;
+          chapters = deduplicatedList as any;
         }
       } catch (syncErr) {
         console.warn('[Cache] On-demand chapter sync error:', syncErr);
       }
+    }
+
+    // Always guarantee chapters returned from DB or sync are strictly unique by chapter_number
+    if (chapters && chapters.length > 0) {
+      const finalUniqueMap = new Map<number, any>();
+      for (const ch of chapters) {
+        const num = Number(ch.chapter_number);
+        if (!finalUniqueMap.has(num)) {
+          finalUniqueMap.set(num, ch);
+        } else {
+          const prev = finalUniqueMap.get(num)!;
+          const prevHasTitle = prev.title && !prev.title.match(/^Chapter\s+\d+$/i);
+          const curHasTitle = ch.title && !ch.title.match(/^Chapter\s+\d+$/i);
+          if (!prevHasTitle && curHasTitle) {
+            finalUniqueMap.set(num, ch);
+          }
+        }
+      }
+      chapters = Array.from(finalUniqueMap.values()).sort(
+        (a, b) => Number(a.chapter_number) - Number(b.chapter_number)
+      );
     }
 
     const chapterNumbers = (chapters || []).map(c => Number(c.chapter_number) || 0);
@@ -333,6 +404,9 @@ export async function getCachedMangaDetail(id: string) {
     };
 
     setCached(cacheKey, result, 300); // 5 minutes
+    if (manga.id && cacheKey !== `manga_detail:${manga.id}`) {
+      setCached(`manga_detail:${manga.id}`, result, 300);
+    }
     return result;
   } catch {
     return null;
@@ -358,22 +432,25 @@ export async function getCachedRecommendations(excludeId: string) {
       .limit(6);
 
     const mangaIds = (mangas || []).map((m: any) => m.id);
-    const { data: chapters } = await supabase
-      .from('chapters')
-      .select('manga_id, chapter_number')
-      .in('manga_id', mangaIds);
+    const neededIds = mangaIds.filter((id: string) => !maxChapterMemCache.has(id));
 
-    const maxMap = new Map<string, number>();
-    for (const ch of chapters || []) {
-      const current = maxMap.get(ch.manga_id) || 0;
-      if (ch.chapter_number > current) {
-        maxMap.set(ch.manga_id, ch.chapter_number);
+    if (neededIds.length > 0) {
+      const { data: chapters } = await supabase
+        .from('chapters')
+        .select('manga_id, chapter_number')
+        .in('manga_id', neededIds);
+
+      for (const ch of chapters || []) {
+        const current = maxChapterMemCache.get(ch.manga_id) || 0;
+        if (ch.chapter_number > current) {
+          maxChapterMemCache.set(ch.manga_id, ch.chapter_number);
+        }
       }
     }
 
     const result = (mangas || []).map((m: any) => ({
       ...m,
-      latest_chapter_number: maxMap.get(m.id) || m.title_i18n?.latest_chapter || m.title_i18n?.total_chapters || 1,
+      latest_chapter_number: maxChapterMemCache.get(m.id) || m.title_i18n?.latest_chapter || m.title_i18n?.total_chapters || 1,
     }));
 
     setCached(cacheKey, result, 600); // 10 minutes

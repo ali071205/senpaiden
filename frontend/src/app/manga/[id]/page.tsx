@@ -1,9 +1,10 @@
-import { fetchApi } from "@/lib/api-client";
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { MangaDetailClient } from "./MangaDetailClient";
 import { AdSlot } from "@/components/AdSlot";
 import { getLocalCatalogue, type CatalogueManga } from "@/lib/local-catalogue";
+import { getCachedMangaDetail, getCachedRecommendations } from "@/lib/cache";
 import { cleanDescription, mangaCanonical, SITE_NAME, absoluteUrl } from "@/lib/seo";
 
 export const revalidate = 60;
@@ -18,12 +19,12 @@ interface ChapterItem {
   likes?: number;
 }
 
-async function getManga(id: string): Promise<(CatalogueManga & { chapters?: ChapterItem[] }) | null> {
-  const data = await fetchApi<CatalogueManga & { chapters?: ChapterItem[] }>(`/api/manga/${id}`);
-  if (data) return data;
+const getManga = cache(async (id: string): Promise<(CatalogueManga & { chapters?: ChapterItem[] }) | null> => {
+  const data = await getCachedMangaDetail(id);
+  if (data) return data as any;
   const local = (await getLocalCatalogue()).find((item) => item.id === id);
   return local ? { ...local, chapters: [] } : null;
-}
+});
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -66,16 +67,16 @@ export default async function MangaDetail({ params }: { params: Promise<{ id: st
   const { chapters, ...manga } = mangaWithChapters;
   let related: CatalogueManga[] = [];
 
-  const recommendations = await fetchApi<{ data?: CatalogueManga[] }>(`/api/manga/${id}/co-binged`, { next: { revalidate: 3600 } });
-  if (recommendations?.data) {
-    related = recommendations.data;
-  }
-  
-  if (!related.length) {
-    const fallback = await fetchApi<{ data?: CatalogueManga[] }>(`/api/manga?page=1&limit=6`);
-    if (fallback?.data) {
-      related = fallback.data.filter((item) => item.id !== manga.id).slice(0, 4);
+  try {
+    const recs = await getCachedRecommendations(id);
+    if (recs && recs.length > 0) {
+      related = recs as any;
     }
+  } catch {}
+
+  if (!related.length) {
+    const local = await getLocalCatalogue();
+    related = local.filter((item) => item.id !== manga.id).slice(0, 4);
   }
 
   const canonical = mangaCanonical(manga.id);

@@ -21,6 +21,7 @@ export function NewMangaCard({ manga, idx }: { manga: any; idx?: number }) {
 
   return (
     <Link href={`/manga/${manga.slug || manga.id}`}
+      prefetch={false}
       className="flex-shrink-0 rounded-2xl overflow-hidden group cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl flex flex-col h-full bg-[#161B22] border border-white/5"
     >
       <div className="relative overflow-hidden bg-[#0a0d12] aspect-[3/4]">

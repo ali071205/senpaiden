@@ -13,9 +13,17 @@ import type { MangaDiscovery, ChapterDiscovery } from '../src/providers/MangaPro
 import WebSocket from 'ws';
 
 // ── Supabase client (service role — full write access) ──────────────────────
+const supabaseUrl = process.env.SUPABASE_URL || 'https://lsdnqbfiytyonvmzurxj.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+if (!supabaseKey) {
+  console.warn('⚠️ [Scraper] Missing SUPABASE_SERVICE_KEY in environment/secrets. Skipping run.');
+  process.exit(0);
+}
+
 const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!,
+  supabaseUrl,
+  supabaseKey,
   {
     auth: { persistSession: false },
     realtime: { transport: WebSocket as any } // Fix for Node 20 WebSocket support
