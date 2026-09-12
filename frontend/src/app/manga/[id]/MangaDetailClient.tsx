@@ -386,9 +386,7 @@ export function MangaDetailClient({
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <BookOpen size={14} /> 
                 <span>
-                  {latestChapter && latestChapter !== chapters.length
-                    ? `Latest: Ch. ${latestChapter} (${chapters.length} Releases)`
-                    : `${chapters.length} Chapters`}
+                  {latestChapter || chapters.length} Chapters
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -476,7 +474,7 @@ export function MangaDetailClient({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold text-white font-rajdhani">
-                    {chapters.length} Chapters
+                    {latestChapter || chapters.length} Chapters
                   </span>
                   <span className="text-xs text-muted-foreground font-noto">
                     (Showing {visibleChapters.length})
