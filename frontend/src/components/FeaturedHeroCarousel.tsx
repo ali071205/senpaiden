@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Play, Star, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Star, Sparkles, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { formatViews } from "@/lib/manga-data";
 
 export interface HeroMangaItem {
   slug: string;
@@ -96,10 +97,15 @@ export function FeaturedHeroCarousel({ items }: FeaturedHeroCarouselProps) {
         {/* Content Overlaid on Landscape Card */}
         <div className="relative z-10 h-full flex flex-col justify-between p-5 sm:p-7 md:p-8 max-w-xl text-left">
           {/* Top Badges */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="flex items-center gap-1 rounded-full bg-primary/90 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-md shadow-primary/30">
-              <Sparkles className="w-3 h-3" /> Featured
+              <Sparkles className="w-3 h-3" /> Top Rated
             </span>
+            {activeManga.views !== undefined && (
+              <span className="flex items-center gap-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 px-2.5 py-0.5 text-[10px] font-bold text-cyan-300">
+                <Eye className="w-3 h-3 text-cyan-300" /> {formatViews(activeManga.views)} Views
+              </span>
+            )}
             <span className="flex items-center gap-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 px-2.5 py-0.5 text-[10px] font-bold text-amber-400">
               <Star className="w-3 h-3 fill-amber-400" /> 4.9
             </span>

@@ -19,6 +19,7 @@ import {
   openAgeVerificationModal,
   AGE_RESTRICTION_UPDATED_EVENT,
 } from "@/lib/age-restriction";
+import { formatViews } from "@/lib/manga-data";
 
 const CHUNK_SIZE = 50;
 
@@ -390,7 +391,7 @@ export function MangaDetailClient({
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Eye size={14} /> <span>{manga.views || '12.4K'} Views</span>
+                <Eye size={14} /> <span>{formatViews(manga.views || manga.view_count || 12400)} Views</span>
               </div>
             </div>
 
