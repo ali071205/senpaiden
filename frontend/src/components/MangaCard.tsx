@@ -87,7 +87,7 @@ export function MangaCard({ manga, showChapter, rank, className = "" }: Props) {
               <span className="font-semibold text-[#22D3EE] truncate max-w-[55%]">Ch. {manga.latestChapter}</span>
             )}
             {manga.views !== undefined && Boolean(manga.views) ? (
-              <span className="inline-flex items-center gap-1 font-bold text-zinc-300 ml-auto shrink-0" title={`${typeof manga.views === 'number' ? manga.views.toLocaleString() : manga.views} views`}>
+              <span className="inline-flex items-center gap-1 font-bold text-zinc-300 ml-auto shrink-0" title={`${typeof manga.views === 'number' ? manga.views.toLocaleString('en-US') : manga.views} views`}>
                 <Eye size={11} className="text-zinc-400" />
                 {formatViews(manga.views)}
               </span>
