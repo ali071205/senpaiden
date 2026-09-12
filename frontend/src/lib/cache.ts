@@ -450,6 +450,8 @@ export async function getCachedMangaDetail(id: string) {
 
     const result = {
       ...manga,
+      artist: manga.artist || manga.title_i18n?.artist || null,
+      studio: manga.studio || manga.title_i18n?.studio || null,
       latest_chapter_number: latestChapter,
       chapters: chapters || [],
     };

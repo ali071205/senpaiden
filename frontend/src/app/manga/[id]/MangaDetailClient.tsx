@@ -33,6 +33,8 @@ interface DetailManga {
   cover_url?: string;
   author?: string;
   artist?: string;
+  studio?: string;
+  title_i18n?: Record<string, any>;
   view_count?: number;
   total_chapters?: number;
   rating?: number;
@@ -596,20 +598,29 @@ export function MangaDetailClient({
                   <User size={15} className="text-primary" /> Details
                 </h3>
                 <div className="space-y-3">
-                  {[
-                    { label: "Author", value: manga.author || "Official Author / Studio", icon: User },
-                    { label: "Artist", value: manga.artist || "Official Artist", icon: Palette },
-                    { label: "Status", value: manga.status || "Ongoing", icon: TrendingUp },
-                    { label: "Genres", value: genres.join(", "), icon: Star },
-                  ].map(({ label, value, icon: Icon }) => (
-                    <div key={label} className="flex items-start gap-3">
-                      <Icon size={14} className="mt-0.5 flex-shrink-0 text-muted-foreground" />
-                      <div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</div>
-                        <div className="text-sm text-white font-medium">{value}</div>
+                  {(() => {
+                    const authorVal = manga.author && manga.author !== "Unknown" ? manga.author : (manga.title_i18n?.author as string) || null;
+                    const artistVal = manga.artist && manga.artist !== "Unknown" ? manga.artist : (manga.title_i18n?.artist as string) || null;
+                    const studioVal = manga.studio || (manga.title_i18n?.studio as string) || null;
+
+                    const detailRows = [
+                      ...(authorVal ? [{ label: "Author", value: authorVal, icon: User }] : []),
+                      ...(artistVal ? [{ label: "Artist", value: artistVal, icon: Palette }] : []),
+                      ...(studioVal ? [{ label: "Studio", value: studioVal, icon: ShieldAlert }] : []),
+                      { label: "Status", value: manga.status ? manga.status.charAt(0).toUpperCase() + manga.status.slice(1) : "Ongoing", icon: TrendingUp },
+                      { label: "Genres", value: genres.join(", "), icon: Star },
+                    ];
+
+                    return detailRows.map(({ label, value, icon: Icon }) => (
+                      <div key={label} className="flex items-start gap-3">
+                        <Icon size={14} className="mt-0.5 flex-shrink-0 text-muted-foreground" />
+                        <div>
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</div>
+                          <div className="text-sm text-white font-medium">{value}</div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </div>
               </div>
 
