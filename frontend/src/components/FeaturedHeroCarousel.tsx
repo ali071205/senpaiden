@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Play, Star, Sparkles, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { Play, Star, Sparkles, ChevronLeft, ChevronRight, Eye, Loader2 } from "lucide-react";
 import { formatViews } from "@/lib/manga-data";
+import { triggerStartLoading } from "@/components/TopProgressBar";
 
 export interface HeroMangaItem {
   slug: string;
@@ -25,6 +26,7 @@ interface FeaturedHeroCarouselProps {
 export function FeaturedHeroCarousel({ items }: FeaturedHeroCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [openingChapter, setOpeningChapter] = useState<string | null>(null);
   const touchStartX = useRef<number | null>(null);
 
   const activeManga = items[currentIndex] || items[0];
@@ -147,10 +149,25 @@ export function FeaturedHeroCarousel({ items }: FeaturedHeroCarouselProps) {
               <Link
                 href={`/manga/${activeManga.slug}/${activeManga.latestChapter || 1}`}
                 prefetch={false}
-                className="inline-flex items-center gap-1.5 rounded-xl sd-gradient px-4 py-2 text-xs sm:text-sm font-black text-white shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all"
+                onClick={() => {
+                  setOpeningChapter(activeManga.slug);
+                  triggerStartLoading();
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-xl sd-gradient px-4 py-2 text-xs sm:text-sm font-black text-white shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all ${
+                  openingChapter === activeManga.slug ? "brightness-90 animate-pulse" : ""
+                }`}
               >
-                <Play className="h-3.5 w-3.5 fill-white" />
-                <span>Read Ch. {activeManga.latestChapter}</span>
+                {openingChapter === activeManga.slug ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Loading Ch. {activeManga.latestChapter}...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-3.5 w-3.5 fill-white" />
+                    <span>Read Ch. {activeManga.latestChapter}</span>
+                  </>
+                )}
               </Link>
 
               <Link

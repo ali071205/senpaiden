@@ -7,10 +7,11 @@ import {
   Star, Bookmark, Play, ChevronRight, BookOpen, Eye,
   User, Palette, TrendingUp, ThumbsUp, Share2, ChevronDown, ArrowUpDown,
   Zap, Unlock, Check, MessageSquarePlus, Send,
-  ShieldAlert, CheckCircle2
+  ShieldAlert, CheckCircle2, Loader2
 } from "lucide-react";
 import { AdSlot } from "@/components/AdSlot";
 import { VideoAdUnit } from "@/components/VideoAdUnit";
+import { triggerStartLoading } from "@/components/TopProgressBar";
 import { isChapterFastPass, getUnlockedChapters, FASTPASS_UPDATED_EVENT } from "@/lib/fastpass";
 import { FastPassUnlockModal } from "@/components/FastPassUnlockModal";
 import {
@@ -83,6 +84,7 @@ export function MangaDetailClient({
   const [unlockedChapters, setUnlockedChapters] = useState<number[]>([]);
   const [fastPassModalChapter, setFastPassModalChapter] = useState<number | null>(null);
   const [isFastPassModalOpen, setIsFastPassModalOpen] = useState(false);
+  const [loadingChapterNumber, setLoadingChapterNumber] = useState<number | null>(null);
 
   // Dynamic reviews state
   const [reviewsList, setReviewsList] = useState<CommunityReview[]>([]);
@@ -414,15 +416,41 @@ export function MangaDetailClient({
                 <>
                   <Link 
                     href={`/manga/${manga.id}/${startChapter}`}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl font-black text-white transition-all hover:scale-105 bg-primary shadow-[0_0_24px_rgba(255,46,46,0.4)] font-rajdhani text-[15px]"
+                    onClick={() => {
+                      setLoadingChapterNumber(startChapter);
+                      triggerStartLoading();
+                    }}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-black text-white transition-all hover:scale-105 bg-primary shadow-[0_0_24px_rgba(255,46,46,0.4)] font-rajdhani text-[15px] ${
+                      loadingChapterNumber === startChapter ? "brightness-90 animate-pulse" : ""
+                    }`}
                   >
-                    <Play size={17} className="fill-white" /> Start Reading
+                    {loadingChapterNumber === startChapter ? (
+                      <>
+                        <Loader2 size={17} className="animate-spin text-white" /> Loading Chapter...
+                      </>
+                    ) : (
+                      <>
+                        <Play size={17} className="fill-white" /> Start Reading
+                      </>
+                    )}
                   </Link>
                   <Link 
                     href={`/manga/${manga.id}/${latestChapter}`}
-                    className="hidden sm:flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all hover:bg-white/10 bg-white/5 border border-white/10 text-white"
+                    onClick={() => {
+                      setLoadingChapterNumber(latestChapter);
+                      triggerStartLoading();
+                    }}
+                    className={`hidden sm:flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all hover:bg-white/10 bg-white/5 border border-white/10 text-white ${
+                      loadingChapterNumber === latestChapter ? "border-primary text-primary animate-pulse" : ""
+                    }`}
                   >
-                    Latest Ch. {latestChapter}
+                    {loadingChapterNumber === latestChapter ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin text-primary" /> Loading Ch. {latestChapter}...
+                      </>
+                    ) : (
+                      <>Latest Ch. {latestChapter}</>
+                    )}
                   </Link>
                 </>
               ) : (
@@ -540,6 +568,8 @@ export function MangaDetailClient({
                   const isUnlocked = unlockedChapters.includes(ch.chapter_number);
                   const isLockedFastPass = isFastPass && !isUnlocked;
 
+                  const isLoadingThis = loadingChapterNumber === ch.chapter_number;
+
                   return (
                     <Link 
                       key={ch.chapter_number}
@@ -549,25 +579,40 @@ export function MangaDetailClient({
                           e.preventDefault();
                           setFastPassModalChapter(ch.chapter_number);
                           setIsFastPassModalOpen(true);
+                        } else {
+                          setLoadingChapterNumber(ch.chapter_number);
+                          triggerStartLoading();
                         }
                       }}
                       className={`flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl group transition-all hover:scale-[1.01] border ${
-                        isLockedFastPass 
+                        isLoadingThis
+                          ? 'bg-red-500/10 border-red-500/60 shadow-[0_0_20px_rgba(255,46,46,0.25)] animate-pulse'
+                          : isLockedFastPass 
                           ? 'bg-[#181512]/90 border-yellow-500/20 hover:border-yellow-500/40'
                           : 'bg-[#161B22]/80 border-white/5 hover:border-primary/25'
                       }`}
                     >
                       <div className="w-12 md:w-14 text-center md:text-right">
-                        <span className={`text-xs md:text-sm font-black font-jetbrains ${isLockedFastPass ? 'text-yellow-400' : 'text-primary'}`}>
-                          Ch.{ch.chapter_number}
-                        </span>
+                        {isLoadingThis ? (
+                          <Loader2 size={16} className="animate-spin text-primary mx-auto md:ml-auto" />
+                        ) : (
+                          <span className={`text-xs md:text-sm font-black font-jetbrains ${isLockedFastPass ? 'text-yellow-400' : 'text-primary'}`}>
+                            Ch.{ch.chapter_number}
+                          </span>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-white group-hover:text-primary transition-colors truncate">
                           {ch.title || `Chapter ${ch.chapter_number}`}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                          {ch.pages || 20} pages
+                          {isLoadingThis ? (
+                            <span className="text-primary font-bold flex items-center gap-1">
+                              Opening chapter & connecting to CDN...
+                            </span>
+                          ) : (
+                            `${ch.pages || 20} pages`
+                          )}
                         </div>
                       </div>
 
@@ -807,6 +852,7 @@ export function MangaDetailClient({
           chapterNumber={fastPassModalChapter}
           onUnlocked={() => {
             setIsFastPassModalOpen(false);
+            triggerStartLoading();
             router.push(`/manga/${manga.id}/${fastPassModalChapter}`);
           }}
         />

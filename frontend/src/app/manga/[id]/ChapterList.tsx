@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search as SearchIcon } from "lucide-react";
+import { Search as SearchIcon, Loader2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { triggerStartLoading } from "@/components/TopProgressBar";
 
 export function ChapterList({ mangaId, initialChapters }: { mangaId: string, initialChapters: any[] }) {
   const [sort, setSort] = useState<"newest" | "oldest">("oldest");
   const [q, setQ] = useState("");
+  const [loadingChapter, setLoadingChapter] = useState<number | null>(null);
 
   const chapters = useMemo(() => {
     const list = initialChapters.filter((c) =>
@@ -55,14 +57,26 @@ export function ChapterList({ mangaId, initialChapters }: { mangaId: string, ini
           if (isProcessing) badgeStatus = "processing";
           if (isFailed) badgeStatus = "failed";
 
+          const isLoading = loadingChapter === c.chapter_number;
+
           return (
             <Link
               key={c.chapter_number}
               href={targetHref}
-              className="group flex items-center gap-3 border-b border-white/5 p-3 text-sm transition last:border-b-0 hover:bg-white/5"
+              onClick={() => {
+                setLoadingChapter(c.chapter_number);
+                triggerStartLoading();
+              }}
+              className={`group flex items-center gap-3 border-b border-white/5 p-3 text-sm transition last:border-b-0 hover:bg-white/5 ${
+                isLoading ? "bg-red-500/10 border-red-500/50 animate-pulse" : ""
+              }`}
             >
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/5 text-sm font-bold tabular-nums">
-                {c.chapter_number}
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                ) : (
+                  c.chapter_number
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -70,7 +84,11 @@ export function ChapterList({ mangaId, initialChapters }: { mangaId: string, ini
                   {!isReady && <StatusBadge status={badgeStatus} />}
                 </div>
                 <div className="mt-0.5 text-[11px] text-[#71717A]">
-                  {new Date(c.created_at).toLocaleDateString()}
+                  {isLoading ? (
+                    <span className="text-primary font-medium">Opening Chapter...</span>
+                  ) : (
+                    new Date(c.created_at).toLocaleDateString()
+                  )}
                 </div>
               </div>
             </Link>

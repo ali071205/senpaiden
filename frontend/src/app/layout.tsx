@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { SiteLayout } from "@/components/SiteLayout";
+import { TopProgressBar } from "@/components/TopProgressBar";
 import { CookieConsent } from "@/components/CookieConsent";
 import { MonetizationProvider } from "@/components/MonetizationProvider";
 import { DEFAULT_DESCRIPTION, SITE_NAME, SITE_URL, absoluteUrl } from "@/lib/seo";
@@ -121,6 +122,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
         />
+        <TopProgressBar />
         <SiteLayout>
           {children}
         </SiteLayout>
