@@ -67,35 +67,52 @@ export function FeaturedHeroCarousel({ items }: FeaturedHeroCarouselProps) {
     <div className="mx-auto max-w-7xl px-4 pt-3 pb-2 md:px-8 md:pt-6 md:pb-4">
       {/* Sleek Landscape Card */}
       <div
-        className="relative w-full h-[220px] sm:h-[260px] md:h-[310px] lg:h-[330px] rounded-3xl overflow-hidden border border-white/10 shadow-2xl group select-none"
+        className="relative w-full h-[240px] sm:h-[280px] md:h-[310px] lg:h-[330px] rounded-3xl overflow-hidden border border-white/10 bg-[#08090E] shadow-2xl group select-none"
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Background Landscape Poster with Smooth Transition */}
-        {items.map((manga, idx) => (
-          <div
-            key={manga.slug}
-            className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-              idx === currentIndex ? "opacity-100 z-0" : "opacity-0 pointer-events-none"
-            }`}
-          >
-            {manga.cover_url && (
-              <img
-                src={manga.cover_url}
-                alt={manga.title}
-                className="w-full h-full object-cover object-center scale-105 transition-transform duration-1000 group-hover:scale-110"
-              />
-            )}
-            {/* Cinematic Gradient Overlays: Dark from left on desktop, bottom-left on mobile */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#08080C] via-[#08080C]/85 to-transparent sm:w-3/4" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#08080C] via-[#08080C]/60 to-transparent sm:hidden" />
-          </div>
-        ))}
+        {/* Background Artwork Showcase with Smooth Transition */}
+        {items.map((manga, idx) => {
+          const isActive = idx === currentIndex;
+          return (
+            <div
+              key={manga.slug}
+              className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
+                isActive ? "opacity-100 z-0" : "opacity-0 pointer-events-none"
+              }`}
+            >
+              {manga.cover_url && (
+                <>
+                  {/* Subtle Ambient Glow */}
+                  <div
+                    className="absolute inset-0 bg-cover bg-center filter blur-3xl opacity-20 scale-125 pointer-events-none"
+                    style={{ backgroundImage: `url(${manga.cover_url})` }}
+                  />
+
+                  {/* Sharp Right-Aligned Character Artwork */}
+                  <div className="absolute right-0 top-0 bottom-0 w-full sm:w-[60%] md:w-[50%] lg:w-[48%] h-full overflow-hidden pointer-events-none">
+                    <img
+                      src={manga.cover_url}
+                      alt={manga.title}
+                      className="w-full h-full object-cover object-[center_15%] transition-transform duration-1000 group-hover:scale-105"
+                    />
+                    {/* Gradient blending the artwork seamlessly into the dark background */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#08090E] via-[#08090E]/80 via-25% to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#08090E] via-transparent to-transparent sm:hidden" />
+                  </div>
+                </>
+              )}
+
+              {/* Solid left-side text backing gradient to guarantee 100% readability */}
+              <div className="absolute inset-y-0 left-0 w-full sm:w-2/3 bg-gradient-to-r from-[#08090E] via-[#08090E]/95 to-transparent z-[1] pointer-events-none" />
+            </div>
+          );
+        })}
 
         {/* Content Overlaid on Landscape Card */}
-        <div className="relative z-10 h-full flex flex-col justify-between p-5 sm:p-7 md:p-8 max-w-xl text-left">
+        <div className="relative z-10 h-full flex flex-col justify-between p-5 sm:p-7 md:p-8 max-w-lg lg:max-w-xl text-left">
           {/* Top Badges */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="flex items-center gap-1 rounded-full bg-primary/90 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-md shadow-primary/30">
@@ -119,13 +136,13 @@ export function FeaturedHeroCarousel({ items }: FeaturedHeroCarouselProps) {
             <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-white font-rajdhani line-clamp-1 drop-shadow-lg tracking-wide">
               {activeManga.title}
             </h2>
-            <p className="mt-1 text-xs text-zinc-300 line-clamp-1 sm:line-clamp-2 max-w-md font-noto opacity-90">
+            <p className="mt-1.5 text-xs sm:text-sm text-zinc-300 line-clamp-2 max-w-md font-noto leading-relaxed opacity-90 drop-shadow-sm">
               {activeManga.description || "Discover this top-rated series with weekly releases on Senpai Den."}
             </p>
           </div>
 
-          {/* Bottom Controls: Read Now Button & Slide Dots */}
-          <div className="flex items-center justify-between gap-3">
+          {/* Bottom Controls: Read Now Button & Slide Controls */}
+          <div className="flex items-center justify-between gap-3 pt-2">
             <div className="flex items-center gap-2.5">
               <Link
                 href={`/manga/${activeManga.slug}/${activeManga.latestChapter || 1}`}
@@ -145,37 +162,39 @@ export function FeaturedHeroCarousel({ items }: FeaturedHeroCarouselProps) {
               </Link>
             </div>
 
-            {/* Minimal Dot Indicators */}
-            <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/10">
-              {items.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentIndex(idx)}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    idx === currentIndex ? "w-5 bg-primary" : "w-1.5 bg-white/30 hover:bg-white/60"
-                  }`}
-                  aria-label={`Slide ${idx + 1}`}
-                />
-              ))}
+            {/* Clean Slide Controls: Prev + Dots + Next (No Overlap with text!) */}
+            <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-white/10">
+              <button
+                onClick={handlePrev}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label="Previous Slide"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+
+              <div className="flex items-center gap-1.5 px-1">
+                {items.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentIndex(idx)}
+                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                      idx === currentIndex ? "w-5 bg-primary shadow-sm shadow-primary/50" : "w-1.5 bg-white/30 hover:bg-white/60"
+                    }`}
+                    aria-label={`Slide ${idx + 1}`}
+                  />
+                ))}
+              </div>
+
+              <button
+                onClick={handleNext}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label="Next Slide"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
         </div>
-
-        {/* Desktop-Only Subtle Edge Arrows (Hidden on Mobile) */}
-        <button
-          onClick={handlePrev}
-          className="hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 items-center justify-center rounded-full bg-black/40 hover:bg-black/80 text-white backdrop-blur-md border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-200"
-          aria-label="Previous Manga"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <button
-          onClick={handleNext}
-          className="hidden md:flex absolute right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 items-center justify-center rounded-full bg-black/40 hover:bg-black/80 text-white backdrop-blur-md border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-200"
-          aria-label="Next Manga"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
       </div>
     </div>
   );
