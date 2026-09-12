@@ -126,8 +126,10 @@ export default async function Discover({ searchParams }: { searchParams: Promise
           {searchQuery ? `Explore matching series and genres.` : isLatest ? "Manga with recently updated chapters." : "Handpicked worlds waiting inside the Den."}
         </p>
 
-        {/* Search Bar */}
-        <CategorySearchBar />
+        {/* Search Bar - Hidden on desktop to avoid duplicate with top header search bar */}
+        <div className="md:hidden">
+          <CategorySearchBar />
+        </div>
 
         {/* Genre Filters */}
         <div className="no-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1 items-center">
