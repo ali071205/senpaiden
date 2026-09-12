@@ -103,13 +103,13 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
       const topUi = mapToUi(topMangas, 1);
       const updatedUi = mapToUi(updatedMangas);
 
-      // When 18+ is ON, mix top 3 mature picks into hero carousel
+      // When 18+ is ON, show 18+ titles FIRST in the hero carousel so they're immediately visible
       if (allow18Plus && matureRes?.data?.length) {
         const matureUi = mapToUi(matureRes.data as CatalogueManga[]);
-        const top3Mature = matureUi.slice(0, 3);
-        const top3NonMature = topUi.slice(0, 3);
-        // Interleave: 3 mainstream + 3 mature = 6 hero slots
-        featuredItems = [...top3NonMature, ...top3Mature].slice(0, 6);
+        const top2Mature = matureUi.slice(0, 2);
+        const top4NonMature = topUi.slice(0, 4);
+        // 18+ titles first so user sees them immediately: [18+ #1, 18+ #2, mainstream #1, #2, #3, #4]
+        featuredItems = [...top2Mature, ...top4NonMature].slice(0, 6);
       } else {
         featuredItems = topUi.slice(0, 6);
       }
