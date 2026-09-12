@@ -9,6 +9,20 @@ interface CacheEntry<T> {
 const memoryCache = new Map<string, CacheEntry<any>>();
 const maxChapterMemCache = new Map<string, number>();
 
+const SEARCH_ALIASES: Record<string, string> = {
+  shippuden: 'naruto',
+  'naruto shippuden': 'naruto',
+  'naruto sippuden': 'naruto',
+  'naruto sippudent': 'naruto',
+  aot: 'attack on titan',
+  snk: 'shingeki no kyojin',
+  jjk: 'jujutsu kaisen',
+  mha: 'my hero academia',
+  bnha: 'boku no hero academia',
+  tbate: 'the beginning after the end',
+  sl: 'solo leveling',
+};
+
 export function getCached<T>(key: string): T | null {
   const entry = memoryCache.get(key);
   if (!entry) return null;
@@ -78,10 +92,11 @@ export async function getCachedMangaList(params: {
   } else {
     query = query.order('updated_at', { ascending: false });
   }
-  query = query.range(offset, offset + limit - 1);
+  const rawQ = (q || '').trim().toLowerCase();
+  const searchQ = SEARCH_ALIASES[rawQ] || (rawQ.includes('shippuden') || rawQ.includes('sippuden') ? 'naruto' : (q ? q.trim() : ''));
 
-  if (q && q.trim() !== '') {
-    query = query.ilike('title', `%${q.trim()}%`);
+  if (searchQ && searchQ.trim() !== '') {
+    query = query.ilike('title', `%${searchQ.trim()}%`);
   }
 
   // Combined included genres (from param or single genre filter)
@@ -98,6 +113,8 @@ export async function getCachedMangaList(params: {
     query = query.not('genres', 'ov', `{${normalizedExcluded.join(',')}}`);
   }
 
+  query = query.range(offset, offset + limit - 1);
+
   const { data, count, error } = await query;
   if (error) {
     console.warn('[Cache] Supabase query error:', error.message);
@@ -110,8 +127,8 @@ export async function getCachedMangaList(params: {
   );
 
   // If this is a search query, sort by relevance and views so exact/prefix matches come first
-  if (q && q.trim() !== '') {
-    const qLower = q.trim().toLowerCase();
+  if (searchQ && searchQ.trim() !== '') {
+    const qLower = searchQ.trim().toLowerCase();
     rawList.sort((a: any, b: any) => {
       const titleA = (a.title || '').trim().toLowerCase();
       const titleB = (b.title || '').trim().toLowerCase();
