@@ -227,8 +227,8 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* NEW CHAPTER LOGO */}
-        <div className="mt-4 px-4 relative mb-2 flex-shrink flex justify-center overflow-hidden">
-          <img src={newChapterLogo.src} alt="New Chapter" className="max-w-[130px] h-auto object-contain drop-shadow-[0_0_15px_rgba(255,46,46,0.15)]" />
+        <div className="mt-4 px-3 relative mb-2 flex-shrink-0 flex justify-center">
+          <img src={newChapterLogo.src} alt="New Chapter" className="w-full max-w-[210px] h-auto object-contain drop-shadow-[0_0_15px_rgba(255,46,46,0.15)] transition-transform hover:scale-105 duration-200" />
         </div>
 
         {/* FOOTER */}
