@@ -341,13 +341,20 @@ export async function getCachedMangaDetail(id: string) {
       .order('chapter_number', { ascending: true })
       .limit(5000);
 
-    // On-Demand Auto-Sync: If chapters are missing in DB, fetch live from Atsu / Asura in 150ms
-    if (!chapters || chapters.length === 0) {
+    const currentMax = (chapters || []).reduce(
+      (max: number, c: any) => Math.max(max, Number(c.chapter_number) || 0),
+      0
+    );
+    const expectedMax = Number(manga.title_i18n?.latest_chapter || 0);
+    const isStaleOrMissing = !chapters || chapters.length === 0 || (expectedMax > 0 && currentMax < expectedMax);
+
+    // On-Demand Auto-Sync: If chapters are missing or behind latest chapter, fetch live from Atsu / Asura
+    if (isStaleOrMissing) {
       try {
         let rawChapters: any[] = [];
         if (manga.source_provider === 'atsu') {
           const res = await fetch(`https://atsu.moe/api/manga/allChapters?mangaId=${manga.source_id}`, {
-            signal: AbortSignal.timeout(2500),
+            signal: AbortSignal.timeout(3500),
           });
           if (res.ok) {
             const json = await res.json();
@@ -364,7 +371,7 @@ export async function getCachedMangaDetail(id: string) {
         } else if (manga.source_provider === 'asura') {
           const slug = manga.source_id.replace(/^asura:/, '');
           const res = await fetch(`https://api.asurascans.com/api/series/${slug}/chapters`, {
-            signal: AbortSignal.timeout(2500),
+            signal: AbortSignal.timeout(3500),
           });
           if (res.ok) {
             const json = await res.json();
@@ -400,12 +407,12 @@ export async function getCachedMangaDetail(id: string) {
             (a, b) => Number(a.chapter_number) - Number(b.chapter_number)
           );
 
-          // Asynchronously persist deduplicated chapters to Supabase in background
+          // Asynchronously persist deduplicated chapters to Supabase with upsert onConflict
           (async () => {
             try {
               for (let i = 0; i < deduplicatedList.length; i += 200) {
                 const batch = deduplicatedList.slice(i, i + 200);
-                await supabase.from('chapters').insert(batch);
+                await supabase.from('chapters').upsert(batch, { onConflict: 'manga_id,chapter_number' });
               }
             } catch {}
           })();
