@@ -10,8 +10,8 @@ import { FeaturedHeroCarousel } from "@/components/FeaturedHeroCarousel";
 import { Frown, ChevronRight } from "lucide-react";
 import { getLocalCatalogue, type CatalogueManga } from "@/lib/local-catalogue";
 
-// Server Component fetching live data from Cloudflare Worker / Next API
-export const revalidate = 60; // Edge Cache for 60 seconds
+// force-dynamic: Every request re-renders with fresh cookies (required for 18+ toggle to work correctly)
+export const dynamic = 'force-dynamic';
 
 import { cookies } from "next/headers";
 import { getCachedMangaList } from "@/lib/cache";

@@ -110,7 +110,9 @@ export async function getCachedMangaList(params: {
   }
 
   if (normalizedExcluded.length > 0) {
-    query = query.not('genres', 'ov', `{${normalizedExcluded.join(',')}}`);
+    // Quote genres that contain spaces for proper PostgreSQL array literal parsing
+    const pgArray = `{${normalizedExcluded.map((g) => g.includes(' ') ? `"${g}"` : g).join(',')}}`;
+    query = query.not('genres', 'ov', pgArray);
   }
 
   query = query.range(offset, offset + limit - 1);
