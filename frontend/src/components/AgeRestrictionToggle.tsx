@@ -59,6 +59,17 @@ export function AgeRestrictionToggle({
 
   if (!mounted) {
     // Avoid hydration mismatch
+    if (variant === "compact") {
+      return (
+        <div className={`flex items-center justify-between gap-2 py-0.5 opacity-50 ${className}`}>
+          <div className="flex items-center gap-1.5">
+            <Shield size={13} className="text-zinc-500 shrink-0" />
+            <span className="text-[11px] font-bold text-zinc-400 whitespace-nowrap">18+ Mode</span>
+          </div>
+          <div className="h-5 w-9 rounded-full bg-zinc-800 border border-white/10 shrink-0" />
+        </div>
+      );
+    }
     return (
       <div className={`inline-flex items-center gap-2 opacity-50 ${className}`}>
         <div className="h-5 w-9 rounded-full bg-white/10" />
@@ -68,20 +79,25 @@ export function AgeRestrictionToggle({
 
   if (variant === "compact") {
     return (
-      <div className={`flex items-center justify-between gap-2 py-1 ${className}`}>
+      <div className={`flex items-center justify-between gap-2 py-0.5 ${className}`}>
         <div className="flex items-center gap-1.5">
           {is18Plus ? (
-            <ShieldAlert size={13} className="text-red-500" />
+            <ShieldAlert size={13} className="text-red-500 shrink-0 animate-pulse" />
           ) : (
-            <Shield size={13} className="text-zinc-500" />
+            <Shield size={13} className="text-zinc-500 shrink-0" />
           )}
-          <span className="text-[11px] font-bold text-zinc-400">18+ Mode</span>
+          <span className={`text-[11px] font-bold whitespace-nowrap transition-colors ${
+            is18Plus ? "text-red-400 font-extrabold" : "text-zinc-400"
+          }`}>
+            18+ Mode
+          </span>
         </div>
 
         <button
           type="button"
           onClick={handleToggle}
           role="switch"
+          aria-label={is18Plus ? "Disable 18+ Content" : "Enable 18+ Content"}
           aria-checked={is18Plus}
           title={is18Plus ? "Disable 18+ Content" : "Enable 18+ Content (Age Verification Required)"}
           className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 ${

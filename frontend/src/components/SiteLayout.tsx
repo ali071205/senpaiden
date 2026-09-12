@@ -200,14 +200,18 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
 
       {/* MOBILE TOP NAV (Visible only on small screens) */}
       {!isReader && (
-      <nav className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-14 gap-2 bg-[#0F1117]/95 backdrop-blur-xl border-b border-red-500/10">
+      <nav className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-3.5 h-14 bg-[#0F1117]/95 backdrop-blur-xl border-b border-red-500/10">
         
-        <Link href="/" className="flex items-center gap-2 -ml-1">
-          <img src={senpaiDenLogo.src} alt="SenpaiDen Logo" className="h-8 w-auto object-contain" />
+        <Link href="/" className="flex items-center gap-2 shrink-0">
+          <img src={senpaiDenLogo.src} alt="SenpaiDen Logo" className="h-7 sm:h-8 w-auto object-contain" />
         </Link>
 
-        <div className="flex items-center gap-4">
-          <Link href={signedIn ? "/account" : "/login"} aria-label={signedIn ? "Account" : "Log in"} className="flex items-center gap-2 shrink-0 transition-opacity hover:opacity-80 -mr-1">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center bg-white/5 border border-white/10 rounded-full px-2 py-0.5 shrink-0">
+            <AgeRestrictionToggle variant="compact" />
+          </div>
+
+          <Link href={signedIn ? "/account" : "/login"} aria-label={signedIn ? "Account" : "Log in"} className="flex items-center gap-1.5 shrink-0 transition-opacity hover:opacity-80">
             {signedIn ? <>
             <div className="flex items-center justify-center bg-white/5 border border-white/10 rounded-full px-2 py-0.5 text-[10px] font-bold text-zinc-300">
               Lv. {readerLevel}
@@ -215,7 +219,7 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
             <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-800 border border-white/10">
               <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&auto=format" alt="Account" className="w-full h-full object-cover" />
             </div>
-            </> : <span className="rounded-xl bg-primary px-3 py-2 text-xs font-black text-white">Log in</span>}
+            </> : <span className="rounded-xl bg-primary px-3 py-1.5 text-xs font-black text-white">Log in</span>}
           </Link>
         </div>
       </nav>
@@ -327,6 +331,11 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
                 </Link>
              ))}
              <div className="mx-4 my-2 h-px bg-white/5" />
+             <div className="px-6 py-2 flex items-center justify-between">
+               <span className="text-xs font-semibold text-zinc-300">18+ Content</span>
+               <AgeRestrictionToggle variant="compact" />
+             </div>
+             <div className="mx-4 my-2 h-px bg-white/5" />
              {[
                { icon: Bell, label: "Notifications", path: "/notifications" },
                { icon: UserRound, label: "Account", path: "/account" },
@@ -379,7 +388,7 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
           </form>
 
           <div className="flex items-center gap-4 ml-auto">
-            <div className="hidden lg:flex items-center bg-white/5 border border-white/10 rounded-full px-2.5 py-0.5">
+            <div className="flex items-center bg-white/5 border border-white/10 rounded-full px-2.5 py-0.5">
               <AgeRestrictionToggle variant="compact" />
             </div>
             <Link href="/notifications" aria-label={`Open notifications${unreadNotifications ? `, ${unreadNotifications} unread` : ""}`} className="relative w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 text-zinc-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
