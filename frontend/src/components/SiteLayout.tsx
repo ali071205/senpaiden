@@ -227,16 +227,13 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* NEW CHAPTER LOGO */}
-        <div className="mt-8 px-4 relative mb-2 flex-shrink-0 flex justify-center">
-          <img src={newChapterLogo.src} alt="New Chapter" className="w-full scale-110 h-auto object-contain drop-shadow-[0_0_15px_rgba(255,46,46,0.15)]" />
+        <div className="mt-4 px-4 relative mb-2 flex-shrink flex justify-center overflow-hidden">
+          <img src={newChapterLogo.src} alt="New Chapter" className="max-w-[130px] h-auto object-contain drop-shadow-[0_0_15px_rgba(255,46,46,0.15)]" />
         </div>
 
         {/* FOOTER */}
-        <div className="mt-auto px-6 pt-4 flex flex-col gap-5 flex-shrink-0">
-           <div>
-              <p className="text-[9px] text-zinc-600 font-medium leading-tight mb-3">
-                © 2026 SenpaiDen<br />All rights reserved.
-              </p>
+        <div className="mt-auto px-5 pt-3 pb-3 flex flex-col gap-3 flex-shrink-0 border-t border-white/5 bg-[#0F1117]/80">
+           <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 bg-white/5 rounded-full p-1 w-fit">
                  <button
                    onClick={() => handleThemeChange("dark")}
@@ -264,9 +261,12 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
                    <Shield size={12} />
                  </Link>
               </div>
-              <div className="mt-3 pt-2 border-t border-white/5">
-                <AgeRestrictionToggle variant="compact" />
-              </div>
+              <p className="text-[9px] text-zinc-600 font-medium leading-tight text-right">
+                © 2026 SenpaiDen
+              </p>
+           </div>
+           <div>
+             <AgeRestrictionToggle variant="compact" />
            </div>
         </div>
       </aside>
@@ -333,6 +333,9 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
           </form>
 
           <div className="flex items-center gap-4 ml-auto">
+            <div className="hidden lg:flex items-center bg-white/5 border border-white/10 rounded-full px-2.5 py-0.5">
+              <AgeRestrictionToggle variant="compact" />
+            </div>
             <Link href="/notifications" aria-label={`Open notifications${unreadNotifications ? `, ${unreadNotifications} unread` : ""}`} className="relative w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 text-zinc-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
               <Bell size={18} />
               {unreadNotifications > 0 && <span className="absolute right-0.5 top-0.5 grid min-h-4 min-w-4 place-items-center rounded-full border-2 border-[#0F1117] bg-primary px-0.5 text-[8px] font-black leading-none text-white">{unreadNotifications > 9 ? "9+" : unreadNotifications}</span>}

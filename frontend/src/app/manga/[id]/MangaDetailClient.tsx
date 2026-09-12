@@ -384,7 +384,12 @@ export function MangaDetailClient({
                 <span className="text-xs text-muted-foreground">/ 10</span>
               </div>
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <BookOpen size={14} /> <span>{chapters.length} Chapters</span>
+                <BookOpen size={14} /> 
+                <span>
+                  {latestChapter && latestChapter !== chapters.length
+                    ? `Latest: Ch. ${latestChapter} (${chapters.length} Releases)`
+                    : `${chapters.length} Chapters`}
+                </span>
               </div>
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Eye size={14} /> <span>{manga.views || '12.4K'} Views</span>
@@ -404,7 +409,7 @@ export function MangaDetailClient({
                     href={`/manga/${manga.id}/${latestChapter}`}
                     className="hidden sm:flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all hover:bg-white/10 bg-white/5 border border-white/10 text-white"
                   >
-                    Latest Chapter
+                    Latest Ch. {latestChapter}
                   </Link>
                 </>
               ) : (

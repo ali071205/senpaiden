@@ -11,6 +11,10 @@ export const MATURE_GENRES = [
   "Ecchi",
   "18+",
   "Erotica",
+  "Boys Love",
+  "Yaoi",
+  "BL",
+  "Yuri",
 ] as const;
 
 const MATURE_GENRES_SET = new Set(MATURE_GENRES.map((g) => g.toLowerCase()));

@@ -23,54 +23,83 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
   const cookieStore = await cookies();
   const allow18Plus = cookieStore.get(AGE_RESTRICTION_COOKIE)?.value === "true";
   
-  let mangas: CatalogueManga[] = [];
-  try {
-    const result = await getCachedMangaList({
-      q: searchQuery || undefined,
-      page: 1,
-      limit: 24,
-      allow18Plus,
-    });
-    if (result.data && result.data.length > 0) {
-      mangas = result.data as CatalogueManga[];
+  const mapToUi = (items: CatalogueManga[]) => {
+    const seenIds = new Set<string>();
+    return items
+      .filter((m) => {
+        if (!m.id || seenIds.has(m.id)) return false;
+        if (!allow18Plus && isMatureManga(m.genres)) return false;
+        seenIds.add(m.id);
+        return true;
+      })
+      .map((m) => ({
+        slug: m.id,
+        title: m.title,
+        altTitle: m.alt_title || "",
+        description: m.description || "",
+        genres: m.genres || ["Action", "Fantasy"],
+        latestChapter: m.latest_chapter_number || 1,
+        status: m.status || "Ongoing",
+        cover_url: m.cover_url,
+        coverHue: 250,
+        coverHue2: 300,
+      }));
+  };
+
+  let featuredItems: ReturnType<typeof mapToUi> = [];
+  let trending: ReturnType<typeof mapToUi> = [];
+  let updated: ReturnType<typeof mapToUi> = [];
+  let uiMangas: ReturnType<typeof mapToUi> = [];
+
+  if (searchQuery) {
+    let searchResults: CatalogueManga[] = [];
+    try {
+      const result = await getCachedMangaList({
+        q: searchQuery,
+        page: 1,
+        limit: 24,
+        allow18Plus,
+      });
+      if (result.data && result.data.length > 0) {
+        searchResults = result.data as CatalogueManga[];
+      }
+    } catch {
+      // Fallback
     }
-  } catch {
-    // Fallback to local catalogue
-  }
-  if (!mangas.length) {
-    const local = await getLocalCatalogue();
-    let filteredLocal = local;
-    if (!allow18Plus) {
-      filteredLocal = filteredLocal.filter((m) => !isMatureManga(m.genres));
+    if (!searchResults.length) {
+      const local = await getLocalCatalogue();
+      const filteredLocal = allow18Plus ? local : local.filter((m) => !isMatureManga(m.genres));
+      searchResults = filteredLocal
+        .filter((manga) => manga.title.toLowerCase().includes(searchQuery.toLowerCase()))
+        .slice(0, 24);
     }
-    mangas = (searchQuery ? filteredLocal.filter((manga) => manga.title.toLowerCase().includes(searchQuery.toLowerCase())) : filteredLocal).slice(0, 24);
+    uiMangas = mapToUi(searchResults);
+  } else {
+    try {
+      const [topRes, updatedRes] = await Promise.all([
+        getCachedMangaList({ page: 1, limit: 16, sort: 'views', allow18Plus }),
+        getCachedMangaList({ page: 1, limit: 16, sort: 'updated', allow18Plus }),
+      ]);
+
+      const topMangas = (topRes.data || []) as CatalogueManga[];
+      const updatedMangas = (updatedRes.data || []) as CatalogueManga[];
+
+      const topUi = mapToUi(topMangas);
+      const updatedUi = mapToUi(updatedMangas);
+
+      featuredItems = topUi.slice(0, 6);
+      trending = topUi.slice(0, 8);
+      updated = updatedUi.slice(0, 12);
+    } catch {
+      // Fallback to local catalogue
+      const local = await getLocalCatalogue();
+      const filteredLocal = allow18Plus ? local : local.filter((m) => !isMatureManga(m.genres));
+      const localUi = mapToUi(filteredLocal);
+      featuredItems = localUi.slice(0, 6);
+      trending = localUi.slice(0, 8);
+      updated = localUi.slice(8, 16);
+    }
   }
-
-  // Map API data to the UI format temporarily if it's missing fields
-  const seenIds = new Set<string>();
-  const uniqueMangas = mangas.filter((m) => {
-    if (!m.id || seenIds.has(m.id)) return false;
-    if (!allow18Plus && isMatureManga(m.genres)) return false;
-    seenIds.add(m.id);
-    return true;
-  });
-
-  const uiMangas = uniqueMangas.map((m) => ({
-    slug: m.id,
-    title: m.title,
-    altTitle: m.alt_title || "",
-    description: m.description || "",
-    genres: m.genres || ["Action", "Fantasy"],
-    latestChapter: m.latest_chapter_number || 1,
-    status: m.status || "Ongoing",
-    cover_url: m.cover_url,
-    coverHue: 250,
-    coverHue2: 300,
-  }));
-
-  const featuredItems = uiMangas.slice(0, 6);
-  const trending = uiMangas.slice(0, 8);
-  const updated = uiMangas.slice(8, 16);
   if (searchQuery) {
     return (
       <div className="pb-28 md:pb-8">
