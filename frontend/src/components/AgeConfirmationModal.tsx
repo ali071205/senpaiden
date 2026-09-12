@@ -116,8 +116,8 @@ export function AgeConfirmationModal() {
           </button>
         </div>
 
-        <p className="mt-4 text-center text-[10px] text-zinc-600">
-          You can toggle this setting anytime from the footer.
+        <p className="mt-4 text-center text-[10px] text-zinc-500">
+          You can toggle this setting anytime from the header or menu.
         </p>
       </div>
     </div>

@@ -29,7 +29,7 @@ import {
   Trophy,
   Sparkles,
   X,
-  AlertCircle,
+  Loader2,
 } from "lucide-react";
 
 type PageFitMode = "fit-width" | "fit-height" | "original";
@@ -124,6 +124,14 @@ export function MangaReaderContainer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [containerWidth, setContainerWidth] = useState(800); // Default max-width
   const [isMobile, setIsMobile] = useState(false);
+  const [isBufferingCdn, setIsBufferingCdn] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setIsBufferingCdn(false);
+    }, 2800);
+    return () => clearTimeout(t);
+  }, []);
 
   const counterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -625,24 +633,38 @@ export function MangaReaderContainer({
           : `Page ${activePagedIndex + 1} / ${displayPages.length}`}
       </div>
 
+      {/* Floating CDN Streaming Toast */}
+      {isBufferingCdn && slices.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-[#111218]/95 backdrop-blur-md border border-white/10 shadow-2xl text-xs text-zinc-200 pointer-events-none animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500 shrink-0" />
+          <span className="font-medium">Streaming high-res pages from CDN...</span>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <div className="w-full min-h-screen cursor-pointer flex flex-col items-center justify-start" onClick={handleContainerClick}>
         {slices.length === 0 ? (
           /* Empty / Ingestion Pending State */
           <div className="w-full min-h-[60vh] flex flex-col items-center justify-center p-8 text-center">
-            <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-5 shadow-lg shadow-amber-500/10">
-              <AlertCircle className="w-8 h-8 text-amber-400" />
+            <div className="relative mb-5">
+              <div className="absolute inset-0 rounded-3xl bg-red-600/20 blur-xl animate-pulse" />
+              <div className="relative w-16 h-16 rounded-3xl bg-red-500/10 border border-red-500/30 flex items-center justify-center shadow-lg shadow-red-500/10">
+                <BookOpen className="w-8 h-8 text-red-500 animate-bounce" style={{ animationDuration: "1.5s" }} />
+              </div>
             </div>
-            <h3 className="text-xl md:text-2xl font-black text-white font-rajdhani mb-2">Chapter Pages Loading / Unavailable</h3>
+            <h3 className="text-xl md:text-2xl font-black text-white font-rajdhani mb-2">Streaming Chapter Pages...</h3>
             <p className="text-sm text-zinc-400 max-w-md mb-6 leading-relaxed">
-              We are synchronizing the high-resolution pages for Chapter {chapterNumber} from source. Please refresh in a moment.
+              We are synchronizing high-resolution pages for Chapter {chapterNumber} from the content delivery network.
             </p>
+            <div className="w-48 h-1.5 bg-white/10 rounded-full overflow-hidden mb-6">
+              <div className="w-full h-full bg-gradient-to-r from-red-600 to-amber-400 animate-pulse" />
+            </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => window.location.reload()}
                 className="px-6 py-2.5 rounded-xl bg-primary text-white font-bold text-sm shadow-[0_0_20px_rgba(255,46,46,0.3)] hover:scale-105 transition active:scale-95"
               >
-                Refresh Chapter
+                Refresh Pages
               </button>
               <Link
                 href={`/manga/${mangaId}`}

@@ -53,8 +53,10 @@ export async function getCachedMangaList(params: {
   page?: number;
   limit?: number;
   allow18Plus?: boolean;
+  /** When true, only return manga that have at least one mature genre (OR match) */
+  matureOnly?: boolean;
 }) {
-  const { q = '', genre = '', sort = '', page = 1, limit = 24, allow18Plus = false } = params;
+  const { q = '', genre = '', sort = '', page = 1, limit = 24, allow18Plus = false, matureOnly = false } = params;
 
   // Normalize included genres array
   const incList = Array.isArray(params.included)
@@ -72,7 +74,7 @@ export async function getCachedMangaList(params: {
   }
   const normalizedExcluded = Array.from(new Set(excList.map((g) => g.trim()).filter(Boolean))).sort();
 
-  const cacheKey = `manga_list:q=${q}:genre=${genre}:inc=${normalizedIncluded.join(',')}:exc=${normalizedExcluded.join(',')}:sort=${sort}:p=${page}:l=${limit}:adult=${allow18Plus ? 1 : 0}`;
+  const cacheKey = `manga_list:q=${q}:genre=${genre}:inc=${normalizedIncluded.join(',')}:exc=${normalizedExcluded.join(',')}:sort=${sort}:p=${page}:l=${limit}:adult=${allow18Plus ? 1 : 0}:matureOnly=${matureOnly ? 1 : 0}`;
   const cached = getCached<{ data: any[]; total: number; page: number; limit: number }>(cacheKey);
   if (cached) return cached;
 
@@ -109,8 +111,16 @@ export async function getCachedMangaList(params: {
     query = query.contains('genres', effectiveIncluded);
   }
 
+  // matureOnly: match titles with ANY mature genre (OR / overlap logic)
+  if (matureOnly) {
+    const matureArr = `{${MATURE_GENRES.map((g) => g.includes(' ') ? `"${g}"` : g).join(',')}}`;
+    query = query.overlaps('genres', matureArr);
+  }
+
   if (normalizedExcluded.length > 0) {
-    query = query.not('genres', 'ov', `{${normalizedExcluded.join(',')}}`);
+    // Quote genres that contain spaces for proper PostgreSQL array literal parsing
+    const pgArray = `{${normalizedExcluded.map((g) => g.includes(' ') ? `"${g}"` : g).join(',')}}`;
+    query = query.not('genres', 'ov', pgArray);
   }
 
   query = query.range(offset, offset + limit - 1);
@@ -122,7 +132,7 @@ export async function getCachedMangaList(params: {
   }
 
   // Filter out disabled/broken legacy titles
-  let rawList = (data || []).filter(
+  const rawList = (data || []).filter(
     (m: any) => !m.title_i18n?.disabled && !m.title_i18n?.is_disabled
   );
 
@@ -450,6 +460,8 @@ export async function getCachedMangaDetail(id: string) {
 
     const result = {
       ...manga,
+      artist: manga.artist || manga.title_i18n?.artist || null,
+      studio: manga.studio || manga.title_i18n?.studio || null,
       latest_chapter_number: latestChapter,
       chapters: chapters || [],
     };

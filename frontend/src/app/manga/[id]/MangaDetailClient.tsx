@@ -7,10 +7,11 @@ import {
   Star, Bookmark, Play, ChevronRight, BookOpen, Eye,
   User, Palette, TrendingUp, ThumbsUp, Share2, ChevronDown, ArrowUpDown,
   Zap, Unlock, Check, MessageSquarePlus, Send,
-  ShieldAlert
+  ShieldAlert, CheckCircle2, Loader2
 } from "lucide-react";
 import { AdSlot } from "@/components/AdSlot";
 import { VideoAdUnit } from "@/components/VideoAdUnit";
+import { triggerStartLoading } from "@/components/TopProgressBar";
 import { isChapterFastPass, getUnlockedChapters, FASTPASS_UPDATED_EVENT } from "@/lib/fastpass";
 import { FastPassUnlockModal } from "@/components/FastPassUnlockModal";
 import {
@@ -19,6 +20,7 @@ import {
   openAgeVerificationModal,
   AGE_RESTRICTION_UPDATED_EVENT,
 } from "@/lib/age-restriction";
+import { formatViews } from "@/lib/manga-data";
 
 const CHUNK_SIZE = 50;
 
@@ -32,6 +34,8 @@ interface DetailManga {
   cover_url?: string;
   author?: string;
   artist?: string;
+  studio?: string;
+  title_i18n?: Record<string, any>;
   view_count?: number;
   total_chapters?: number;
   rating?: number;
@@ -57,6 +61,7 @@ interface CommunityReview {
   text: string;
   likes: number;
   time: string;
+  source?: string;
 }
 
 export function MangaDetailClient({ 
@@ -79,9 +84,11 @@ export function MangaDetailClient({
   const [unlockedChapters, setUnlockedChapters] = useState<number[]>([]);
   const [fastPassModalChapter, setFastPassModalChapter] = useState<number | null>(null);
   const [isFastPassModalOpen, setIsFastPassModalOpen] = useState(false);
+  const [loadingChapterNumber, setLoadingChapterNumber] = useState<number | null>(null);
 
   // Dynamic reviews state
   const [reviewsList, setReviewsList] = useState<CommunityReview[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(true);
   const [newReviewText, setNewReviewText] = useState("");
   const [newReviewRating, setNewReviewRating] = useState(10);
   const [newReviewName, setNewReviewName] = useState("");
@@ -134,37 +141,44 @@ export function MangaDetailClient({
     return () => window.removeEventListener(FASTPASS_UPDATED_EVENT, syncUnlocked);
   }, [manga.id]);
 
-  // Load reviews specific to this manga
+  // Load real internet reviews and local user reviews specific to this manga
   useEffect(() => {
+    let isMounted = true;
+    setLoadingReviews(true);
+
+    let localReviews: CommunityReview[] = [];
     try {
       const stored = localStorage.getItem(`senpai_reviews_${manga.id}`);
       if (stored) {
-        setReviewsList(JSON.parse(stored));
-      } else {
-        const seedReviews: CommunityReview[] = [
-          {
-            id: `seed-1-${manga.id}`,
-            user: "kage_reader",
-            avatar: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=80&h=80&fit=crop&auto=format",
-            rating: 10,
-            text: `The pacing and character progression in ${manga.title} is top tier. Definitely one of the best ${genres[0] || 'manga'} series right now!`,
-            likes: 428,
-            time: "2 days ago",
-          },
-          {
-            id: `seed-2-${manga.id}`,
-            user: "luna_void",
-            avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&auto=format",
-            rating: 9,
-            text: `Incredible art style and tension. The story keeps you hooked from chapter 1 onwards. Highly recommended!`,
-            likes: 312,
-            time: "5 days ago",
-          }
-        ];
-        setReviewsList(seedReviews);
+        localReviews = JSON.parse(stored);
       }
     } catch {}
-  }, [manga.id, manga.title, genres]);
+
+    const searchParams = new URLSearchParams();
+    if (manga.title) searchParams.set("title", manga.title);
+    if (manga.alt_title) searchParams.set("alt", manga.alt_title);
+
+    fetch(`/api/manga/${manga.id}/reviews?${searchParams.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isMounted) return;
+        const apiReviews: CommunityReview[] = Array.isArray(data.reviews) ? data.reviews : [];
+        const existingIds = new Set(localReviews.map((r) => r.id));
+        const combined = [...localReviews, ...apiReviews.filter((r) => !existingIds.has(r.id))];
+        setReviewsList(combined);
+      })
+      .catch((err) => {
+        console.warn("Failed to load real reviews:", err);
+        if (isMounted) setReviewsList(localReviews);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingReviews(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [manga.id, manga.title, manga.alt_title]);
 
   const handlePostReview = (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,6 +192,7 @@ export function MangaDetailClient({
       text: newReviewText.trim(),
       likes: 1,
       time: "Just now",
+      source: "Senpai Den Reader",
     };
     const updated = [userRev, ...reviewsList];
     setReviewsList(updated);
@@ -185,7 +200,9 @@ export function MangaDetailClient({
     setNewReviewName("");
     setShowReviewForm(false);
     try {
-      localStorage.setItem(`senpai_reviews_${manga.id}`, JSON.stringify(updated));
+      const stored = localStorage.getItem(`senpai_reviews_${manga.id}`);
+      const prevLocal: CommunityReview[] = stored ? JSON.parse(stored) : [];
+      localStorage.setItem(`senpai_reviews_${manga.id}`, JSON.stringify([userRev, ...prevLocal]));
     } catch {}
   };
 
@@ -390,7 +407,7 @@ export function MangaDetailClient({
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Eye size={14} /> <span>{manga.views || '12.4K'} Views</span>
+                <Eye size={14} /> <span>{formatViews(manga.views || manga.view_count || 0)} Views</span>
               </div>
             </div>
 
@@ -399,15 +416,41 @@ export function MangaDetailClient({
                 <>
                   <Link 
                     href={`/manga/${manga.id}/${startChapter}`}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl font-black text-white transition-all hover:scale-105 bg-primary shadow-[0_0_24px_rgba(255,46,46,0.4)] font-rajdhani text-[15px]"
+                    onClick={() => {
+                      setLoadingChapterNumber(startChapter);
+                      triggerStartLoading();
+                    }}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-black text-white transition-all hover:scale-105 bg-primary shadow-[0_0_24px_rgba(255,46,46,0.4)] font-rajdhani text-[15px] ${
+                      loadingChapterNumber === startChapter ? "brightness-90 animate-pulse" : ""
+                    }`}
                   >
-                    <Play size={17} className="fill-white" /> Start Reading
+                    {loadingChapterNumber === startChapter ? (
+                      <>
+                        <Loader2 size={17} className="animate-spin text-white" /> Loading Chapter...
+                      </>
+                    ) : (
+                      <>
+                        <Play size={17} className="fill-white" /> Start Reading
+                      </>
+                    )}
                   </Link>
                   <Link 
                     href={`/manga/${manga.id}/${latestChapter}`}
-                    className="hidden sm:flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all hover:bg-white/10 bg-white/5 border border-white/10 text-white"
+                    onClick={() => {
+                      setLoadingChapterNumber(latestChapter);
+                      triggerStartLoading();
+                    }}
+                    className={`hidden sm:flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all hover:bg-white/10 bg-white/5 border border-white/10 text-white ${
+                      loadingChapterNumber === latestChapter ? "border-primary text-primary animate-pulse" : ""
+                    }`}
                   >
-                    Latest Ch. {latestChapter}
+                    {loadingChapterNumber === latestChapter ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin text-primary" /> Loading Ch. {latestChapter}...
+                      </>
+                    ) : (
+                      <>Latest Ch. {latestChapter}</>
+                    )}
                   </Link>
                 </>
               ) : (
@@ -525,6 +568,8 @@ export function MangaDetailClient({
                   const isUnlocked = unlockedChapters.includes(ch.chapter_number);
                   const isLockedFastPass = isFastPass && !isUnlocked;
 
+                  const isLoadingThis = loadingChapterNumber === ch.chapter_number;
+
                   return (
                     <Link 
                       key={ch.chapter_number}
@@ -534,25 +579,40 @@ export function MangaDetailClient({
                           e.preventDefault();
                           setFastPassModalChapter(ch.chapter_number);
                           setIsFastPassModalOpen(true);
+                        } else {
+                          setLoadingChapterNumber(ch.chapter_number);
+                          triggerStartLoading();
                         }
                       }}
                       className={`flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl group transition-all hover:scale-[1.01] border ${
-                        isLockedFastPass 
+                        isLoadingThis
+                          ? 'bg-red-500/10 border-red-500/60 shadow-[0_0_20px_rgba(255,46,46,0.25)] animate-pulse'
+                          : isLockedFastPass 
                           ? 'bg-[#181512]/90 border-yellow-500/20 hover:border-yellow-500/40'
                           : 'bg-[#161B22]/80 border-white/5 hover:border-primary/25'
                       }`}
                     >
                       <div className="w-12 md:w-14 text-center md:text-right">
-                        <span className={`text-xs md:text-sm font-black font-jetbrains ${isLockedFastPass ? 'text-yellow-400' : 'text-primary'}`}>
-                          Ch.{ch.chapter_number}
-                        </span>
+                        {isLoadingThis ? (
+                          <Loader2 size={16} className="animate-spin text-primary mx-auto md:ml-auto" />
+                        ) : (
+                          <span className={`text-xs md:text-sm font-black font-jetbrains ${isLockedFastPass ? 'text-yellow-400' : 'text-primary'}`}>
+                            Ch.{ch.chapter_number}
+                          </span>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-white group-hover:text-primary transition-colors truncate">
                           {ch.title || `Chapter ${ch.chapter_number}`}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                          {ch.pages || 20} pages
+                          {isLoadingThis ? (
+                            <span className="text-primary font-bold flex items-center gap-1">
+                              Opening chapter & connecting to CDN...
+                            </span>
+                          ) : (
+                            `${ch.pages || 20} pages`
+                          )}
                         </div>
                       </div>
 
@@ -595,20 +655,30 @@ export function MangaDetailClient({
                   <User size={15} className="text-primary" /> Details
                 </h3>
                 <div className="space-y-3">
-                  {[
-                    { label: "Author", value: manga.author || "Official Author / Studio", icon: User },
-                    { label: "Artist", value: manga.artist || "Official Artist", icon: Palette },
-                    { label: "Status", value: manga.status || "Ongoing", icon: TrendingUp },
-                    { label: "Genres", value: genres.join(", "), icon: Star },
-                  ].map(({ label, value, icon: Icon }) => (
-                    <div key={label} className="flex items-start gap-3">
-                      <Icon size={14} className="mt-0.5 flex-shrink-0 text-muted-foreground" />
-                      <div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</div>
-                        <div className="text-sm text-white font-medium">{value}</div>
+                  {(() => {
+                    const authorVal = manga.author && manga.author !== "Unknown" ? manga.author : (manga.title_i18n?.author as string) || null;
+                    const artistVal = manga.artist && manga.artist !== "Unknown" ? manga.artist : (manga.title_i18n?.artist as string) || null;
+                    const studioVal = manga.studio || (manga.title_i18n?.studio as string) || null;
+
+                    const detailRows = [
+                      ...(authorVal ? [{ label: "Author", value: authorVal, icon: User }] : []),
+                      ...(artistVal ? [{ label: "Artist", value: artistVal, icon: Palette }] : []),
+                      ...(studioVal ? [{ label: "Studio", value: studioVal, icon: ShieldAlert }] : []),
+                      { label: "Status", value: manga.status ? manga.status.charAt(0).toUpperCase() + manga.status.slice(1) : "Ongoing", icon: TrendingUp },
+                      { label: "Global Views", value: `${formatViews(manga.views || manga.view_count || 0)}${manga.title_i18n?.views_source ? ` • ${manga.title_i18n.views_source}` : " • Verified Readers"}`, icon: Eye },
+                      { label: "Genres", value: genres.join(", "), icon: Star },
+                    ];
+
+                    return detailRows.map(({ label, value, icon: Icon }) => (
+                      <div key={label} className="flex items-start gap-3">
+                        <Icon size={14} className="mt-0.5 flex-shrink-0 text-muted-foreground" />
+                        <div>
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</div>
+                          <div className="text-sm text-white font-medium">{value}</div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </div>
               </div>
 
@@ -686,43 +756,86 @@ export function MangaDetailClient({
               </div>
 
               {/* Reviews List */}
-              {reviewsList.map((r) => {
-                const isLiked = liked.has(r.id);
-                return (
-                  <div key={r.id} className="p-4 md:p-5 rounded-2xl bg-[#161B22]/80 border border-white/5">
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-800 flex-shrink-0">
-                        <img src={r.avatar} alt={r.user} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold text-white truncate">{r.user}</span>
-                          <span className="text-[10px] text-muted-foreground">{r.time}</span>
-                        </div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          {Array.from({ length: 5 }).map((_, j) => (
-                            <Star key={j} size={10} className={j < (r.rating / 2) ? "fill-yellow-400 text-yellow-400" : "text-gray-700"} />
-                          ))}
-                          <span className="text-[10px] text-yellow-400 font-bold ml-1">{r.rating}/10</span>
+              {loadingReviews ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((n) => (
+                    <div key={n} className="p-4 md:p-5 rounded-2xl bg-[#161B22]/60 border border-white/5 animate-pulse space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-white/10" />
+                        <div className="space-y-1.5 flex-1">
+                          <div className="h-3 w-28 bg-white/10 rounded" />
+                          <div className="h-2 w-16 bg-white/5 rounded" />
                         </div>
                       </div>
+                      <div className="h-3 w-full bg-white/5 rounded" />
+                      <div className="h-3 w-4/5 bg-white/5 rounded" />
                     </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed mb-3 font-noto">{r.text}</p>
-                    <button 
-                      onClick={() => setLiked((p) => {
-                        const n = new Set(p);
-                        if (n.has(r.id)) n.delete(r.id);
-                        else n.add(r.id);
-                        return n;
-                      })}
-                      className={`flex items-center gap-1.5 text-[11px] transition-all ${isLiked ? "text-primary font-bold" : "text-muted-foreground hover:text-white"}`}
-                    >
-                      <ThumbsUp size={12} className={isLiked ? "fill-red-500" : ""} />
-                      {r.likes + (isLiked ? 1 : 0)} helpful
-                    </button>
+                  ))}
+                </div>
+              ) : reviewsList.length === 0 ? (
+                <div className="p-8 text-center rounded-2xl bg-[#161B22]/80 border border-white/5 space-y-3">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                    <MessageSquarePlus size={24} />
                   </div>
-                );
-              })}
+                  <h4 className="text-base font-bold text-white font-rajdhani">No Community Reviews Yet</h4>
+                  <p className="text-xs text-zinc-400 max-w-sm mx-auto font-noto">
+                    Be the first reader to share your thoughts, rating, and feedback for {manga.title}!
+                  </p>
+                  <button
+                    onClick={() => setShowReviewForm(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl sd-gradient text-white text-xs font-bold shadow-md shadow-primary/20 hover:scale-105 transition-all"
+                  >
+                    <MessageSquarePlus size={13} />
+                    <span>Write the First Review</span>
+                  </button>
+                </div>
+              ) : (
+                reviewsList.map((r) => {
+                  const isLiked = liked.has(r.id);
+                  return (
+                    <div key={r.id} className="p-4 md:p-5 rounded-2xl bg-[#161B22]/80 border border-white/5">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-800 flex-shrink-0">
+                          <img src={r.avatar} alt={r.user} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-sm font-bold text-white truncate">{r.user}</span>
+                              {r.source && (
+                                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/20 font-semibold flex-shrink-0">
+                                  <CheckCircle2 size={10} />
+                                  <span>{r.source}</span>
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground flex-shrink-0">{r.time}</span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {Array.from({ length: 5 }).map((_, j) => (
+                              <Star key={j} size={10} className={j < (r.rating / 2) ? "fill-yellow-400 text-yellow-400" : "text-gray-700"} />
+                            ))}
+                            <span className="text-[10px] text-yellow-400 font-bold ml-1">{r.rating}/10</span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-zinc-300 leading-relaxed mb-3 font-noto break-words">{r.text}</p>
+                      <button 
+                        onClick={() => setLiked((p) => {
+                          const n = new Set(p);
+                          if (n.has(r.id)) n.delete(r.id);
+                          else n.add(r.id);
+                          return n;
+                        })}
+                        className={`flex items-center gap-1.5 text-[11px] transition-all ${isLiked ? "text-primary font-bold" : "text-muted-foreground hover:text-white"}`}
+                      >
+                        <ThumbsUp size={12} className={isLiked ? "fill-red-500" : ""} />
+                        {r.likes + (isLiked ? 1 : 0)} helpful
+                      </button>
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
         </div>
@@ -739,6 +852,7 @@ export function MangaDetailClient({
           chapterNumber={fastPassModalChapter}
           onUnlocked={() => {
             setIsFastPassModalOpen(false);
+            triggerStartLoading();
             router.push(`/manga/${manga.id}/${fastPassModalChapter}`);
           }}
         />

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MangaCard } from "@/components/MangaCard";
+import { TopMangaSection } from "@/components/TopMangaSection";
 import { HomeLibraryRow } from "@/components/HomeLibraryRow";
 import { PersonalizedFeedRow } from "@/components/PersonalizedFeedRow";
 import { ContinueReadingBubble } from "@/components/ContinueReadingBubble";
@@ -9,8 +10,8 @@ import { FeaturedHeroCarousel } from "@/components/FeaturedHeroCarousel";
 import { Frown, ChevronRight } from "lucide-react";
 import { getLocalCatalogue, type CatalogueManga } from "@/lib/local-catalogue";
 
-// Server Component fetching live data from Cloudflare Worker / Next API
-export const revalidate = 60; // Edge Cache for 60 seconds
+// force-dynamic: Every request re-renders with fresh cookies (required for 18+ toggle to work correctly)
+export const dynamic = 'force-dynamic';
 
 import { cookies } from "next/headers";
 import { getCachedMangaList } from "@/lib/cache";
@@ -23,7 +24,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
   const cookieStore = await cookies();
   const allow18Plus = cookieStore.get(AGE_RESTRICTION_COOKIE)?.value === "true";
   
-  const mapToUi = (items: CatalogueManga[]) => {
+  const mapToUi = (items: CatalogueManga[], startRank = 0) => {
     const seenIds = new Set<string>();
     return items
       .filter((m) => {
@@ -32,7 +33,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
         seenIds.add(m.id);
         return true;
       })
-      .map((m) => ({
+      .map((m, idx) => ({
         slug: m.id,
         title: m.title,
         altTitle: m.alt_title || "",
@@ -43,11 +44,13 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
         cover_url: m.cover_url,
         coverHue: 250,
         coverHue2: 300,
+        views: (m.title_i18n?.views_display as string) || m.view_count || 0,
+        rank: startRank > 0 ? startRank + idx : undefined,
       }));
   };
 
   let featuredItems: ReturnType<typeof mapToUi> = [];
-  let trending: ReturnType<typeof mapToUi> = [];
+  let top100: ReturnType<typeof mapToUi> = [];
   let updated: ReturnType<typeof mapToUi> = [];
   let uiMangas: ReturnType<typeof mapToUi> = [];
 
@@ -76,28 +79,51 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
     uiMangas = mapToUi(searchResults);
   } else {
     try {
-      const [topRes, updatedRes] = await Promise.all([
-        getCachedMangaList({ page: 1, limit: 16, sort: 'views', allow18Plus }),
-        getCachedMangaList({ page: 1, limit: 16, sort: 'updated', allow18Plus }),
-      ]);
+      // Build parallel requests
+      const requests: Promise<any>[] = [
+        getCachedMangaList({ page: 1, limit: 108, sort: 'views', allow18Plus }),
+        getCachedMangaList({ page: 1, limit: 24, sort: 'updated', allow18Plus }),
+      ];
+
+      // When 18+ is ON, also fetch top 18+ specific titles for the hero carousel
+      if (allow18Plus) {
+        requests.push(
+          getCachedMangaList({
+            page: 1, limit: 12, sort: 'views', allow18Plus: true,
+            matureOnly: true,
+          })
+        );
+      }
+
+      const [topRes, updatedRes, matureRes] = await Promise.all(requests);
 
       const topMangas = (topRes.data || []) as CatalogueManga[];
       const updatedMangas = (updatedRes.data || []) as CatalogueManga[];
 
-      const topUi = mapToUi(topMangas);
+      const topUi = mapToUi(topMangas, 1);
       const updatedUi = mapToUi(updatedMangas);
 
-      featuredItems = topUi.slice(0, 6);
-      trending = topUi.slice(0, 8);
-      updated = updatedUi.slice(0, 12);
+      // When 18+ is ON, show 18+ titles FIRST in the hero carousel so they're immediately visible
+      if (allow18Plus && matureRes?.data?.length) {
+        const matureUi = mapToUi(matureRes.data as CatalogueManga[]);
+        const top2Mature = matureUi.slice(0, 2);
+        const top4NonMature = topUi.slice(0, 4);
+        // 18+ titles first so user sees them immediately: [18+ #1, 18+ #2, mainstream #1, #2, #3, #4]
+        featuredItems = [...top2Mature, ...top4NonMature].slice(0, 6);
+      } else {
+        featuredItems = topUi.slice(0, 6);
+      }
+
+      top100 = topUi;
+      updated = updatedUi.slice(0, 24);
     } catch {
       // Fallback to local catalogue
       const local = await getLocalCatalogue();
       const filteredLocal = allow18Plus ? local : local.filter((m) => !isMatureManga(m.genres));
-      const localUi = mapToUi(filteredLocal);
+      const localUi = mapToUi(filteredLocal, 1);
       featuredItems = localUi.slice(0, 6);
-      trending = localUi.slice(0, 8);
-      updated = localUi.slice(8, 16);
+      top100 = localUi;
+      updated = localUi.slice(8, 24);
     }
   }
   if (searchQuery) {
@@ -176,11 +202,11 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
 
       <div className="mx-auto mt-8 max-w-7xl px-4 md:px-8"><AdSlot placement="home-feed" /></div>
 
-      {/* Trending */}
+      {/* Latest Releases & New Chapters */}
       <section className="mx-auto max-w-7xl px-4 md:px-8">
-        <SectionTitle title="Trending Now" accent="violet" href="/discover" />
+        <SectionTitle title="Latest Releases & New Chapters" accent="cyan" href="/discover?sort=updated" />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
-          {trending.map((m) => (
+          {updated.slice(0, 16).map((m) => (
             <MangaCard key={m.slug} manga={m} showChapter />
           ))}
         </div>
@@ -191,17 +217,8 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
         <VideoAdUnit />
       </section>
 
-      {/* Recently Updated */}
-      <section className="mx-auto mt-10 max-w-7xl px-4 md:px-8">
-        <SectionTitle title="Recently Updated" accent="cyan" />
-        <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
-          {updated.map((m) => (
-            <div key={m.slug} className="w-32 shrink-0 snap-start sm:w-36">
-              <MangaCard manga={m} showChapter />
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* Top 100 Most Viewed Manga (Ranked by All-Time Views) */}
+      <TopMangaSection items={top100} />
 
       {/* Floating Retention Bubble */}
       <ContinueReadingBubble />

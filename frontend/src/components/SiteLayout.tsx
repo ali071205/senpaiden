@@ -200,14 +200,26 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
 
       {/* MOBILE TOP NAV (Visible only on small screens) */}
       {!isReader && (
-      <nav className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-14 gap-2 bg-[#0F1117]/95 backdrop-blur-xl border-b border-red-500/10">
+      <nav className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-3.5 h-14 bg-[#0F1117]/95 backdrop-blur-xl border-b border-red-500/10">
         
-        <Link href="/" className="flex items-center gap-2 -ml-1">
-          <img src={senpaiDenLogo.src} alt="SenpaiDen Logo" className="h-8 w-auto object-contain" />
+        <Link href="/" className="flex items-center gap-2 shrink-0">
+          <img src={senpaiDenLogo.src} alt="SenpaiDen Logo" className="h-7 sm:h-8 w-auto object-contain" />
         </Link>
 
-        <div className="flex items-center gap-4">
-          <Link href={signedIn ? "/account" : "/login"} aria-label={signedIn ? "Account" : "Log in"} className="flex items-center gap-2 shrink-0 transition-opacity hover:opacity-80 -mr-1">
+        <div className="flex items-center gap-2">
+          <Link
+            href="/discover"
+            className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/5 border border-white/10 shrink-0"
+            title="Search manga"
+          >
+            <Search size={13} />
+          </Link>
+
+          <div className="flex items-center bg-white/5 border border-white/10 rounded-full px-2 py-0.5 shrink-0">
+            <AgeRestrictionToggle variant="compact" />
+          </div>
+
+          <Link href={signedIn ? "/account" : "/login"} aria-label={signedIn ? "Account" : "Log in"} className="flex items-center gap-1.5 shrink-0 transition-opacity hover:opacity-80">
             {signedIn ? <>
             <div className="flex items-center justify-center bg-white/5 border border-white/10 rounded-full px-2 py-0.5 text-[10px] font-bold text-zinc-300">
               Lv. {readerLevel}
@@ -215,7 +227,7 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
             <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-800 border border-white/10">
               <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&auto=format" alt="Account" className="w-full h-full object-cover" />
             </div>
-            </> : <span className="rounded-xl bg-primary px-3 py-2 text-xs font-black text-white">Log in</span>}
+            </> : <span className="rounded-xl bg-primary px-3 py-1.5 text-xs font-black text-white">Log in</span>}
           </Link>
         </div>
       </nav>
@@ -223,75 +235,110 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
 
       {/* DESKTOP SIDEBAR */}
       {!isReader && (
-      <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-[260px] flex-col z-50 bg-[#0F1117]/95 backdrop-blur-xl border-r border-white/5 overflow-y-auto no-scrollbar pb-6">
+      <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-[260px] flex-col z-50 bg-[#0F1117]/98 backdrop-blur-xl border-r border-white/5">
         {/* LOGO */}
-        <Link href="/" className="flex items-center justify-center gap-3 px-4 py-4 shrink-0 border-b border-white/5">
-          <img src={senpaiDenLogo.src} alt="SenpaiDen Logo" className="w-full max-w-[200px] h-auto object-contain drop-shadow-[0_0_8px_rgba(255,46,46,0.3)]" />
+        <Link href="/" className="flex items-center justify-center gap-3 px-4 py-3.5 shrink-0 border-b border-white/5">
+          <img src={senpaiDenLogo.src} alt="SenpaiDen Logo" className="w-full max-w-[190px] h-auto object-contain drop-shadow-[0_0_8px_rgba(255,46,46,0.3)]" />
         </Link>
 
-        {/* MENU ITEMS */}
-        <div className="flex-1 flex flex-col gap-1 px-4">
+        {/* UPPER SEARCH BAR */}
+        <div className="px-3 pt-3 pb-1 shrink-0">
+          <form onSubmit={handleSearch} className="relative w-full">
+            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => { isInputFocused.current = true; }}
+              onBlur={() => { isInputFocused.current = false; }}
+              placeholder="Search manga..."
+              className="w-full pl-9 pr-7 py-2 rounded-xl text-xs text-white placeholder:text-zinc-500 bg-white/5 border border-white/10 hover:border-white/20 focus:border-primary/60 focus:bg-white/10 outline-none transition-all font-noto"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  lastPushedQueryRef.current = "";
+                  if (pathname === "/") router.replace("/", { scroll: false });
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-0.5"
+                title="Clear search"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </form>
+        </div>
+
+        {/* SCROLLABLE MIDDLE SECTION (MENU + MASCOT) */}
+        <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar px-3 py-2 gap-1 min-h-0">
           {SIDEBAR_ITEMS.map((item, i) => {
             const Icon = item.icon;
             const reallyActive = isActive(item.path);
 
             return (
               <Link key={i} href={item.path}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
+                className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 shrink-0"
                 style={{
                   background: reallyActive ? "#FF2E2E" : "transparent",
                   color: reallyActive ? "white" : "#A1A1AA"
                 }}>
-                <Icon size={18} className={reallyActive ? "text-white" : "text-zinc-400"} />
+                <Icon size={17} className={reallyActive ? "text-white" : "text-zinc-400"} />
                 <span className="text-[13px] font-bold font-noto tracking-wide">{item.label}</span>
               </Link>
             );
           })}
-          {/* Removed Upload Manga Button */}
+
+          {/* LOCKED MASCOT IMAGE (PERMANENT, BIGGER & PROMINENT) */}
+          <div className="mt-2 px-1 relative flex-shrink-0 flex justify-center items-center select-none">
+            <img
+              src={newChapterLogo.src}
+              alt="SenpaiDen Mascot - New Chapters"
+              className="w-full max-w-[240px] h-auto object-contain drop-shadow-[0_0_20px_rgba(255,46,46,0.25)] transition-transform hover:scale-105 duration-200"
+              draggable={false}
+            />
+          </div>
         </div>
 
-        {/* NEW CHAPTER LOGO */}
-        <div className="mt-4 px-3 relative mb-2 flex-shrink-0 flex justify-center">
-          <img src={newChapterLogo.src} alt="New Chapter" className="w-full max-w-[210px] h-auto object-contain drop-shadow-[0_0_15px_rgba(255,46,46,0.15)] transition-transform hover:scale-105 duration-200" />
-        </div>
+        {/* PINNED SIDEBAR FOOTER (ALWAYS VISIBLE - NEVER CUT OFF) */}
+        <div className="shrink-0 px-4 pt-2.5 pb-3 flex flex-col gap-2.5 border-t border-white/10 bg-[#0C0E14] z-10">
+          {/* 18+ AGE RESTRICTION TOGGLE - PROMINENT & ALWAYS VISIBLE */}
+          <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-3 py-1 hover:border-white/20 transition-all">
+            <AgeRestrictionToggle variant="compact" />
+          </div>
 
-        {/* FOOTER */}
-        <div className="mt-auto px-5 pt-3 pb-3 flex flex-col gap-3 flex-shrink-0 border-t border-white/5 bg-[#0F1117]/80">
-           <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1 bg-white/5 rounded-full p-1 w-fit">
-                 <button
-                   onClick={() => handleThemeChange("dark")}
-                   title="Dark Theme"
-                   className={`p-1.5 rounded-full transition-colors ${theme === "dark" ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"}`}
-                 >
-                   <Moon size={12} />
-                 </button>
-                 <button
-                   onClick={() => handleThemeChange("light")}
-                   title="Light Theme"
-                   className={`p-1.5 rounded-full transition-colors ${theme === "light" ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"}`}
-                 >
-                   <Sun size={12} />
-                 </button>
-                 <button
-                   onClick={() => handleThemeChange("system")}
-                   title="System Theme"
-                   className={`p-1.5 rounded-full transition-colors ${theme === "system" ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"}`}
-                 >
-                   <Laptop size={12} />
-                 </button>
-                 <div className="w-px h-3 bg-white/10 mx-1" />
-                 <Link href="/admin" className="p-1.5 rounded-full text-zinc-500 hover:text-primary transition-colors">
-                   <Shield size={12} />
-                 </Link>
-              </div>
-              <p className="text-[9px] text-zinc-600 font-medium leading-tight text-right">
-                © 2026 SenpaiDen
-              </p>
-           </div>
-           <div>
-             <AgeRestrictionToggle variant="compact" />
-           </div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1 bg-white/5 rounded-full p-1 w-fit">
+              <button
+                onClick={() => handleThemeChange("dark")}
+                title="Dark Theme"
+                className={`p-1.5 rounded-full transition-colors ${theme === "dark" ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"}`}
+              >
+                <Moon size={12} />
+              </button>
+              <button
+                onClick={() => handleThemeChange("light")}
+                title="Light Theme"
+                className={`p-1.5 rounded-full transition-colors ${theme === "light" ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"}`}
+              >
+                <Sun size={12} />
+              </button>
+              <button
+                onClick={() => handleThemeChange("system")}
+                title="System Theme"
+                className={`p-1.5 rounded-full transition-colors ${theme === "system" ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"}`}
+              >
+                <Laptop size={12} />
+              </button>
+              <div className="w-px h-3 bg-white/10 mx-1" />
+              <Link href="/admin" className="p-1.5 rounded-full text-zinc-500 hover:text-primary transition-colors" title="Admin">
+                <Shield size={12} />
+              </Link>
+            </div>
+            <p className="text-[9px] text-zinc-600 font-medium leading-tight text-right">
+              © 2026 SenpaiDen
+            </p>
+          </div>
         </div>
       </aside>
       )}
@@ -326,6 +373,11 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
                    <span className={`font-semibold ${isActive(item.path) ? "text-primary" : "text-foreground"}`}>{item.label}</span>
                 </Link>
              ))}
+             <div className="mx-4 my-2 h-px bg-white/5" />
+             <div className="px-6 py-2 flex items-center justify-between">
+               <span className="text-xs font-semibold text-zinc-300">18+ Content</span>
+               <AgeRestrictionToggle variant="compact" />
+             </div>
              <div className="mx-4 my-2 h-px bg-white/5" />
              {[
                { icon: Bell, label: "Notifications", path: "/notifications" },
@@ -379,7 +431,7 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
           </form>
 
           <div className="flex items-center gap-4 ml-auto">
-            <div className="hidden lg:flex items-center bg-white/5 border border-white/10 rounded-full px-2.5 py-0.5">
+            <div className="flex items-center bg-white/5 border border-white/10 rounded-full px-2.5 py-0.5">
               <AgeRestrictionToggle variant="compact" />
             </div>
             <Link href="/notifications" aria-label={`Open notifications${unreadNotifications ? `, ${unreadNotifications} unread` : ""}`} className="relative w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 text-zinc-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
