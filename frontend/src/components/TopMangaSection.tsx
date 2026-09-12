@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { MangaCard } from "@/components/MangaCard";
 import type { Manga } from "@/lib/manga-data";
-import { Flame, Trophy, ChevronDown, ChevronUp, Sparkles, Filter } from "lucide-react";
+import { Trophy, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 
 interface Props {
   items: Manga[];

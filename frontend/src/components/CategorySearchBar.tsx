@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, X, Sparkles } from "lucide-react";
+import { Search, X } from "lucide-react";
 
 export function CategorySearchBar() {
   const router = useRouter();

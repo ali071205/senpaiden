@@ -122,7 +122,7 @@ export async function getCachedMangaList(params: {
   }
 
   // Filter out disabled/broken legacy titles
-  let rawList = (data || []).filter(
+  const rawList = (data || []).filter(
     (m: any) => !m.title_i18n?.disabled && !m.title_i18n?.is_disabled
   );
 

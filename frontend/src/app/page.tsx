@@ -7,7 +7,7 @@ import { ContinueReadingBubble } from "@/components/ContinueReadingBubble";
 import { AdSlot } from "@/components/AdSlot";
 import { VideoAdUnit } from "@/components/VideoAdUnit";
 import { FeaturedHeroCarousel } from "@/components/FeaturedHeroCarousel";
-import { Frown, ChevronRight, Zap } from "lucide-react";
+import { Frown, ChevronRight } from "lucide-react";
 import { getLocalCatalogue, type CatalogueManga } from "@/lib/local-catalogue";
 
 // Server Component fetching live data from Cloudflare Worker / Next API
@@ -50,7 +50,6 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
   };
 
   let featuredItems: ReturnType<typeof mapToUi> = [];
-  let trending: ReturnType<typeof mapToUi> = [];
   let top100: ReturnType<typeof mapToUi> = [];
   let updated: ReturnType<typeof mapToUi> = [];
   let uiMangas: ReturnType<typeof mapToUi> = [];
@@ -92,7 +91,6 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
       const updatedUi = mapToUi(updatedMangas);
 
       featuredItems = topUi.slice(0, 6);
-      trending = topUi.slice(0, 8);
       top100 = topUi;
       updated = updatedUi.slice(0, 24);
     } catch {
@@ -101,7 +99,6 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
       const filteredLocal = allow18Plus ? local : local.filter((m) => !isMatureManga(m.genres));
       const localUi = mapToUi(filteredLocal, 1);
       featuredItems = localUi.slice(0, 6);
-      trending = localUi.slice(0, 8);
       top100 = localUi;
       updated = localUi.slice(8, 24);
     }
