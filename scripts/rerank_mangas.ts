@@ -27,7 +27,9 @@ async function rerankMangas(mode = 'views') {
 
   const { data: mangas, error } = await supabase
     .from('manga')
-    .select('id, title, view_count, title_i18n, source_provider, genres');
+    .select('id, title, view_count, title_i18n, source_provider, genres')
+    .order('view_count', { ascending: false, nullsFirst: false })
+    .limit(2000);
 
   if (error || !mangas) {
     console.error('Error fetching mangas:', error);

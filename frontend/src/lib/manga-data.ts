@@ -24,12 +24,15 @@ export interface Manga {
   latestChapter?: number;
   progress?: { chapter: number; page: number; percent: number };
   chapters?: MangaChapter[];
-  views?: number;
+  views?: number | string;
   rank?: number;
 }
 
 export function formatViews(views?: number | string): string {
   if (!views) return "0";
+  if (typeof views === "string" && (views.endsWith("B") || views.endsWith("M") || views.endsWith("K"))) {
+    return views;
+  }
   const num = typeof views === "string" ? parseFloat(views.replace(/[^0-9.]/g, "")) : views;
   if (!num || isNaN(num) || num <= 0) return typeof views === "string" ? views : "0";
   if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;

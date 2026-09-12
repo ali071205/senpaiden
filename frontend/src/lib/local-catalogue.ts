@@ -2,7 +2,7 @@ import "server-only";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-export type CatalogueManga = { id: string; title: string; alt_title: string; description: string; genres: string[]; latest_chapter_number: number; status: string; cover_url?: string; updated_at?: string; author?: string; view_count?: number };
+export type CatalogueManga = { id: string; title: string; alt_title: string; description: string; genres: string[]; latest_chapter_number: number; status: string; cover_url?: string; updated_at?: string; author?: string; view_count?: number; title_i18n?: Record<string, any> };
 
 let cache: CatalogueManga[] | null = null;
 

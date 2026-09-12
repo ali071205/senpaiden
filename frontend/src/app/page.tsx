@@ -44,7 +44,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
         cover_url: m.cover_url,
         coverHue: 250,
         coverHue2: 300,
-        views: m.view_count || 0,
+        views: (m.title_i18n?.views_display as string) || m.view_count || 0,
         rank: startRank > 0 ? startRank + idx : undefined,
       }));
   };

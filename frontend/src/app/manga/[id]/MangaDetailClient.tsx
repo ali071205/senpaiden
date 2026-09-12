@@ -405,7 +405,7 @@ export function MangaDetailClient({
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Eye size={14} /> <span>{formatViews(manga.views || manga.view_count || 12400)} Views</span>
+                <Eye size={14} /> <span>{formatViews(manga.views || manga.view_count || 0)} Views</span>
               </div>
             </div>
 
@@ -620,6 +620,7 @@ export function MangaDetailClient({
                       ...(artistVal ? [{ label: "Artist", value: artistVal, icon: Palette }] : []),
                       ...(studioVal ? [{ label: "Studio", value: studioVal, icon: ShieldAlert }] : []),
                       { label: "Status", value: manga.status ? manga.status.charAt(0).toUpperCase() + manga.status.slice(1) : "Ongoing", icon: TrendingUp },
+                      { label: "Global Views", value: `${formatViews(manga.views || manga.view_count || 0)}${manga.title_i18n?.views_source ? ` • ${manga.title_i18n.views_source}` : " • Verified Readers"}`, icon: Eye },
                       { label: "Genres", value: genres.join(", "), icon: Star },
                     ];
 
