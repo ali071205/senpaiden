@@ -68,12 +68,7 @@ export default function ChapterLoading() {
             </span>
           </div>
 
-          {/* Shimmering Strip Skeleton Mockup */}
-          <div className="w-full max-w-[320px] sm:max-w-[420px] flex flex-col gap-2 mt-8 opacity-40 pointer-events-none">
-            <div className="w-full aspect-[3/4] rounded-xl bg-zinc-900/60 border border-white/5 animate-pulse flex items-center justify-center">
-              <div className="w-12 h-1 bg-white/10 rounded-full" />
-            </div>
-          </div>
+
         </div>
       </main>
     </div>
