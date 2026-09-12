@@ -79,10 +79,23 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
     uiMangas = mapToUi(searchResults);
   } else {
     try {
-      const [topRes, updatedRes] = await Promise.all([
+      // Build parallel requests
+      const requests: Promise<any>[] = [
         getCachedMangaList({ page: 1, limit: 108, sort: 'views', allow18Plus }),
         getCachedMangaList({ page: 1, limit: 24, sort: 'updated', allow18Plus }),
-      ]);
+      ];
+
+      // When 18+ is ON, also fetch top 18+ specific titles for the hero carousel
+      if (allow18Plus) {
+        requests.push(
+          getCachedMangaList({
+            page: 1, limit: 12, sort: 'views', allow18Plus: true,
+            matureOnly: true,
+          })
+        );
+      }
+
+      const [topRes, updatedRes, matureRes] = await Promise.all(requests);
 
       const topMangas = (topRes.data || []) as CatalogueManga[];
       const updatedMangas = (updatedRes.data || []) as CatalogueManga[];
@@ -90,7 +103,17 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
       const topUi = mapToUi(topMangas, 1);
       const updatedUi = mapToUi(updatedMangas);
 
-      featuredItems = topUi.slice(0, 6);
+      // When 18+ is ON, mix top 3 mature picks into hero carousel
+      if (allow18Plus && matureRes?.data?.length) {
+        const matureUi = mapToUi(matureRes.data as CatalogueManga[]);
+        const top3Mature = matureUi.slice(0, 3);
+        const top3NonMature = topUi.slice(0, 3);
+        // Interleave: 3 mainstream + 3 mature = 6 hero slots
+        featuredItems = [...top3NonMature, ...top3Mature].slice(0, 6);
+      } else {
+        featuredItems = topUi.slice(0, 6);
+      }
+
       top100 = topUi;
       updated = updatedUi.slice(0, 24);
     } catch {
