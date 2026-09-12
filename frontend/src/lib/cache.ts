@@ -104,9 +104,34 @@ export async function getCachedMangaList(params: {
     return { data: [], total: 0, page, limit };
   }
 
+  // Filter out disabled/broken legacy titles
+  let rawList = (data || []).filter(
+    (m: any) => !m.title_i18n?.disabled && !m.title_i18n?.is_disabled
+  );
+
+  // If this is a search query, sort by relevance and views so exact/prefix matches come first
+  if (q && q.trim() !== '') {
+    const qLower = q.trim().toLowerCase();
+    rawList.sort((a: any, b: any) => {
+      const titleA = (a.title || '').trim().toLowerCase();
+      const titleB = (b.title || '').trim().toLowerCase();
+
+      const exactA = titleA === qLower;
+      const exactB = titleB === qLower;
+      if (exactA && !exactB) return -1;
+      if (!exactA && exactB) return 1;
+
+      const startsA = titleA.startsWith(qLower);
+      const startsB = titleB.startsWith(qLower);
+      if (startsA && !startsB) return -1;
+      if (!startsA && startsB) return 1;
+
+      return (b.view_count || 0) - (a.view_count || 0);
+    });
+  }
+
   // Deduplicate by normalized title so identical titles NEVER appear twice in search/catalog
   const seenTitles = new Set<string>();
-  const rawList = data || [];
   const dedupedData: any[] = [];
   for (const item of rawList) {
     const norm = (item.title || '').trim().toLowerCase();
@@ -217,15 +242,17 @@ export async function getCachedCatalogVectors(allow18Plus: boolean = false) {
       }
     }
 
-    const mapped = initialItems.map((item: any) => ({
-      slug: item.id,
-      title: item.title,
-      cover_url: item.cover_url,
-      status: item.status,
-      genres: item.genres,
-      latest_chapter_number: maxChapterMemCache.get(item.id) || item.title_i18n?.latest_chapter || item.title_i18n?.total_chapters || 1,
-      client_vector: [1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0],
-    }));
+    const mapped = initialItems
+      .filter((item: any) => !item.title_i18n?.disabled && !item.title_i18n?.is_disabled)
+      .map((item: any) => ({
+        slug: item.id,
+        title: item.title,
+        cover_url: item.cover_url,
+        status: item.status,
+        genres: item.genres,
+        latest_chapter_number: maxChapterMemCache.get(item.id) || item.title_i18n?.latest_chapter || item.title_i18n?.total_chapters || 1,
+        client_vector: [1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0],
+      }));
 
     setCached(cacheKey, mapped, 600); // 10 minutes
     return mapped;
