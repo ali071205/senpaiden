@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import senpaiDenLogo from "@/assets/img/logo.png";
@@ -16,7 +16,8 @@ import {
   Home, LayoutGrid, RefreshCw, Bookmark, History,
   Search, Bell,
   ChevronRight, Shield, UserRound,
-  Moon, Sun, Laptop
+  Moon, Sun, Laptop,
+  X
 } from "lucide-react";
 
 const SIDEBAR_ITEMS = [
@@ -33,17 +34,30 @@ function ActiveLinkHandler({
   setHasGenre,
   setHasSort,
   setSearch,
+  isFocusedRef,
+  lastPushedQueryRef,
 }: {
   setHasGenre: (v: boolean) => void;
   setHasSort: (v: boolean) => void;
   setSearch: (v: string) => void;
+  isFocusedRef: React.MutableRefObject<boolean>;
+  lastPushedQueryRef: React.MutableRefObject<string | null>;
 }) {
   const searchParams = useSearchParams();
   useEffect(() => {
     setHasGenre(searchParams.has("genre"));
     setHasSort(searchParams.get("sort") === "updated");
-    setSearch(searchParams.get("q") || "");
-  }, [searchParams, setHasGenre, setHasSort, setSearch]);
+
+    // Never overwrite what the user is actively typing in the search box
+    if (isFocusedRef.current) return;
+
+    const q = searchParams.get("q") || "";
+    // If the URL query was triggered by our own search typing/submit, skip resetting state
+    if (lastPushedQueryRef.current !== null && lastPushedQueryRef.current === q) return;
+
+    lastPushedQueryRef.current = q;
+    setSearch(q);
+  }, [searchParams, setHasGenre, setHasSort, setSearch, isFocusedRef, lastPushedQueryRef]);
   return null;
 }
 
@@ -53,6 +67,8 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
   const [hasGenre, setHasGenre] = useState(false);
   const [hasSort, setHasSort] = useState(false);
   const [search, setSearch] = useState("");
+  const isInputFocused = useRef(false);
+  const lastPushedQueryRef = useRef<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountName, setAccountName] = useState("Senpai");
   const [signedIn, setSignedIn] = useState(false);
@@ -124,9 +140,10 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
       const currentUrl = `${pathname}${typeof window !== "undefined" ? window.location.search : ""}`;
 
       if (currentUrl !== targetUrl) {
+        lastPushedQueryRef.current = nextQuery;
         router.replace(targetUrl, { scroll: false });
       }
-    }, 300);
+    }, 350);
 
     return () => clearTimeout(timer);
   }, [isReader, pathname, router, search]);
@@ -154,15 +171,22 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (search.trim()) {
-      router.replace(`/?q=${encodeURIComponent(search.trim())}`, { scroll: false });
-    }
+    const q = search.trim();
+    lastPushedQueryRef.current = q;
+    const targetUrl = q ? `/?q=${encodeURIComponent(q)}` : "/";
+    router.replace(targetUrl, { scroll: false });
   };
 
   return (
     <div className="min-h-screen w-full flex font-exo bg-background text-foreground relative">
       <Suspense fallback={null}>
-        <ActiveLinkHandler setHasGenre={setHasGenre} setHasSort={setHasSort} setSearch={setSearch} />
+        <ActiveLinkHandler
+          setHasGenre={setHasGenre}
+          setHasSort={setHasSort}
+          setSearch={setSearch}
+          isFocusedRef={isInputFocused}
+          lastPushedQueryRef={lastPushedQueryRef}
+        />
       </Suspense>
       {/* Ambient glows */}
       <div className="fixed inset-0 pointer-events-none z-0 hidden md:block">
@@ -327,9 +351,31 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => {
+                isInputFocused.current = true;
+              }}
+              onBlur={() => {
+                isInputFocused.current = false;
+              }}
               placeholder="Search manga..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-2xl text-[13px] text-foreground placeholder:text-zinc-500 outline-none transition-all font-noto bg-white/5 border border-white/5 hover:border-white/10 focus:border-primary/50 focus:bg-white/10"
+              className="w-full pl-10 pr-9 py-2.5 rounded-2xl text-[13px] text-foreground placeholder:text-zinc-500 outline-none transition-all font-noto bg-white/5 border border-white/5 hover:border-white/10 focus:border-primary/50 focus:bg-white/10"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  lastPushedQueryRef.current = "";
+                  if (pathname === "/") {
+                    router.replace("/", { scroll: false });
+                  }
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-1 transition-colors"
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
           </form>
 
           <div className="flex items-center gap-4 ml-auto">
