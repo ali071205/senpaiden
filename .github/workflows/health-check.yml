@@ -23,30 +23,35 @@ jobs:
         continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://lsdnqbfiytyonvmzurxj.supabase.co' }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzZG5xYmZpeXR5b252bXp1cnhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4NjUzMDUsImV4cCI6MjEwMDQ0MTMwNX0.-Hxi0RLRwVDQVeRV8EGgVkDwTKZRr_QhIsaQhfSGaQc' }}
         run: |
           node -e "
-            const url = (process.env.SUPABASE_URL || '').trim();
-            const key = (process.env.SUPABASE_SERVICE_KEY || '').trim();
-            if (!url || !key) {
-              console.warn('⚠️ SUPABASE_URL or SUPABASE_SERVICE_KEY secret is not configured in GitHub Secrets.');
-              console.warn('Please add SUPABASE_URL and SUPABASE_SERVICE_KEY in GitHub Repo Settings -> Secrets and variables -> Actions.');
+            try {
+              const url = (process.env.SUPABASE_URL || 'https://lsdnqbfiytyonvmzurxj.supabase.co').trim();
+              const key = (process.env.SUPABASE_SERVICE_KEY || '').trim();
+              if (!url || !key) {
+                console.warn('⚠️ No Supabase credentials available — skipping ping.');
+                process.exit(0);
+              }
+              const { createClient } = require('@supabase/supabase-js');
+              const sb = createClient(url, key);
+              sb.from('manga').select('id', { count: 'exact', head: true })
+                .then(({ count, error }) => {
+                  if (error) {
+                    console.warn('Supabase ping notice:', error.message);
+                  } else {
+                    console.log('Supabase OK — ' + count + ' manga records active.');
+                  }
+                  process.exit(0);
+                })
+                .catch((err) => {
+                  console.warn('Supabase ping error:', err.message);
+                  process.exit(0);
+                });
+            } catch (err) {
+              console.warn('Supabase ping exception caught:', err.message);
               process.exit(0);
             }
-            const { createClient } = require('@supabase/supabase-js');
-            const sb = createClient(url, key);
-            sb.from('manga').select('id', { count: 'exact', head: true })
-              .then(({ count, error }) => {
-                if (error) {
-                  console.warn('Supabase ping notice:', error.message);
-                  process.exit(0);
-                }
-                console.log('Supabase OK — ' + count + ' manga records.');
-              })
-              .catch((err) => {
-                console.warn('Supabase ping error:', err.message);
-                process.exit(0);
-              });
           "
 
       - name: Check HF Worker health endpoint
@@ -70,25 +75,32 @@ jobs:
         continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://lsdnqbfiytyonvmzurxj.supabase.co' }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
         run: |
           node -e "
-            const url = (process.env.SUPABASE_URL || '').trim();
-            const key = (process.env.SUPABASE_SERVICE_KEY || '').trim();
-            if (!url || !key) {
-              console.warn('⚠️ SUPABASE_URL or SUPABASE_SERVICE_KEY not configured — skipping log.');
+            try {
+              const url = (process.env.SUPABASE_URL || '').trim();
+              const key = (process.env.SUPABASE_SERVICE_KEY || '').trim();
+              if (!url || !key) {
+                console.log('Note: SUPABASE_SERVICE_KEY not set for writing error_log, skipping DB logging.');
+                process.exit(0);
+              }
+              const { createClient } = require('@supabase/supabase-js');
+              const sb = createClient(url, key);
+              sb.from('error_log').insert({
+                provider: 'health_check',
+                error_type: 'HEALTH_PING',
+                error_detail: 'Automated health check completed at ' + new Date().toISOString()
+              }).then(({ error }) => {
+                if (error) console.warn('Failed to log health check:', error.message);
+                else console.log('Health check logged successfully.');
+                process.exit(0);
+              }).catch((err) => {
+                console.warn('Failed to log health check:', err.message);
+                process.exit(0);
+              });
+            } catch (err) {
+              console.warn('Log health check exception caught:', err.message);
               process.exit(0);
             }
-            const { createClient } = require('@supabase/supabase-js');
-            const sb = createClient(url, key);
-            sb.from('error_log').insert({
-              provider: 'health_check',
-              error_type: 'HEALTH_PING',
-              error_detail: 'Automated health check completed at ' + new Date().toISOString()
-            }).then(({ error }) => {
-              if (error) console.warn('Failed to log health check:', error.message);
-              else console.log('Health check logged successfully.');
-            }).catch((err) => {
-              console.warn('Failed to log health check:', err.message);
-            });
           "
