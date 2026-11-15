@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Keep the development compiler isolated from production builds. Running
-  // `next build` must not invalidate chunks used by an active dev server.
-  distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   turbopack: {
     root: new URL('.', import.meta.url).pathname.replace(/^\/(?:[A-Za-z]:)/, (match) => match.slice(1)).replace(/\/$/, ''),
   },
