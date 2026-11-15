@@ -76,8 +76,7 @@ const getSliceUrl = (baseUrl: string, key: string) => {
   }
   if (
     key.includes('readdetectiveconan.com') ||
-    key.includes('mangapill.com') ||
-    key.includes('atsu.moe')
+    key.includes('mangapill.com')
   ) {
     return `/api/image/proxy?url=${encodeURIComponent(key)}`;
   }

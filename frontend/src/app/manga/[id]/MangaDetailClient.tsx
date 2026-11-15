@@ -13,12 +13,7 @@ import { AdSlot, VideoAdUnit, ADS_ENABLED } from "@/components/ads";
 import { triggerStartLoading } from "@/components/TopProgressBar";
 import { isChapterFastPass, getUnlockedChapters, FASTPASS_UPDATED_EVENT } from "@/lib/fastpass";
 import { FastPassUnlockModal } from "@/components/FastPassUnlockModal";
-import {
-  isMatureManga,
-  getIs18Plus,
-  openAgeVerificationModal,
-  AGE_RESTRICTION_UPDATED_EVENT,
-} from "@/lib/age-restriction";
+import { isMatureManga } from "@/lib/age-restriction";
 import { formatViews, getOptimizedImageUrl } from "@/lib/manga-data";
 import { SmartImage } from "@/components/SmartImage";
 
@@ -94,23 +89,8 @@ export function MangaDetailClient({
   const [newReviewName, setNewReviewName] = useState("");
   const [showReviewForm, setShowReviewForm] = useState(false);
 
-  // Age restriction check
+  // Mature check
   const isMature = useMemo(() => isMatureManga(manga.genres), [manga.genres]);
-  const [is18Plus, setIs18PlusState] = useState(false);
-  const [hasCheckedAge, setHasCheckedAge] = useState(false);
-
-  useEffect(() => {
-    setIs18PlusState(getIs18Plus());
-    setHasCheckedAge(true);
-
-    const sync = () => setIs18PlusState(getIs18Plus());
-    window.addEventListener(AGE_RESTRICTION_UPDATED_EVENT, sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener(AGE_RESTRICTION_UPDATED_EVENT, sync);
-      window.removeEventListener("storage", sync);
-    };
-  }, []);
 
   const [currentChapters, setCurrentChapters] = useState<DetailChapter[]>(chapters || []);
   const [loadingChapters, setLoadingChapters] = useState<boolean>(!chapters || chapters.length === 0);
@@ -346,32 +326,26 @@ export function MangaDetailClient({
     } catch {}
   };
 
-  if (isMature && hasCheckedAge && !is18Plus) {
+  if (isMature) {
     return (
       <div className="text-foreground font-exo pb-16 md:pb-8 max-w-2xl mx-auto px-4 pt-16 text-center">
-        <div className="relative overflow-hidden rounded-3xl border border-red-500/30 bg-[#0F1117] p-8 sm:p-12 shadow-[0_0_50px_rgba(239,68,68,0.2)]">
-          <div className="mx-auto mb-4 grid h-20 w-20 place-items-center rounded-3xl bg-red-500/10 border border-red-500/30 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.3)]">
+        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0F1117] p-8 sm:p-12 shadow-2xl">
+          <div className="mx-auto mb-4 grid h-20 w-20 place-items-center rounded-3xl bg-white/5 border border-white/10 text-zinc-400">
             <ShieldAlert size={40} />
           </div>
-          <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-black uppercase tracking-wider text-white shadow-md">
-            18+ Age Restricted
+          <span className="rounded-full bg-zinc-800 border border-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-zinc-400">
+            Content Unavailable
           </span>
-          <h1 className="mt-4 text-2xl font-black text-white sm:text-3xl">
-            Age Verification Required
+          <h1 className="mt-4 text-2xl font-black text-white sm:text-3xl font-rajdhani">
+            Manga Unavailable
           </h1>
           <p className="mx-auto mt-3 max-w-md text-sm text-zinc-400">
-            &quot;{manga.title}&quot; is classified as mature/adult (18+) content. You must be at least 18 years old to access this title.
+            &quot;{manga.title}&quot; is not available on SenpaiDen. Mature and 18+ content has been disabled.
           </p>
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button
-              onClick={openAgeVerificationModal}
-              className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-red-600 to-red-500 px-6 py-3.5 text-sm font-black text-white shadow-[0_0_20px_rgba(239,68,68,0.4)] hover:brightness-110 active:scale-[0.98] transition-all"
-            >
-              Verify Age (18+)
-            </button>
+          <div className="mt-8 flex items-center justify-center">
             <Link
               href="/"
-              className="w-full sm:w-auto rounded-2xl border border-white/10 bg-white/5 px-6 py-3.5 text-sm font-bold text-zinc-400 hover:bg-white/10 hover:text-white transition-all"
+              className="rounded-2xl bg-primary px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-primary/30 hover:brightness-110 active:scale-[0.98] transition-all"
             >
               Return to Home
             </Link>

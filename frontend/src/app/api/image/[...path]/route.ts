@@ -46,6 +46,21 @@ const FALLBACK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height
 </svg>`;
 const FALLBACK_SVG_BUFFER = Buffer.from(FALLBACK_SVG);
 
+const IMMUTABLE_HEADERS: Record<string, string> = {
+  'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable',
+  'CDN-Cache-Control': 'public, max-age=31536000, immutable',
+  'Vercel-CDN-Cache-Control': 'public, max-age=31536000, immutable',
+  'Access-Control-Allow-Origin': '*',
+};
+
+const FALLBACK_HEADERS: Record<string, string> = {
+  'Content-Type': 'image/svg+xml',
+  'Cache-Control': 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800',
+  'CDN-Cache-Control': 'public, max-age=86400',
+  'Vercel-CDN-Cache-Control': 'public, max-age=86400',
+  'Access-Control-Allow-Origin': '*',
+};
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
   const key = path.join('/');
@@ -67,8 +82,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
       return new NextResponse(Buffer.from(cached.buffer), {
         headers: {
           'Content-Type': cached.contentType,
-          'Cache-Control': 'public, max-age=31536000, immutable',
-          'Access-Control-Allow-Origin': '*',
+          ...IMMUTABLE_HEADERS,
         },
       });
     }
@@ -134,23 +148,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
         return new NextResponse(Buffer.from(result.buffer), {
           headers: {
             'Content-Type': result.contentType,
-            'Cache-Control': 'public, max-age=31536000, immutable',
-            'Access-Control-Allow-Origin': '*',
+            ...IMMUTABLE_HEADERS,
           },
         });
       }
       return new NextResponse(FALLBACK_SVG_BUFFER, {
-        headers: {
-          'Content-Type': 'image/svg+xml',
-          'Cache-Control': 'public, max-age=3600',
-        },
+        headers: FALLBACK_HEADERS,
       });
     } catch {
       return new NextResponse(FALLBACK_SVG_BUFFER, {
-        headers: {
-          'Content-Type': 'image/svg+xml',
-          'Cache-Control': 'public, max-age=3600',
-        },
+        headers: FALLBACK_HEADERS,
       });
     }
   }
@@ -163,7 +170,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
       return new NextResponse(new Uint8Array(decryptedBuffer), {
         headers: {
           'Content-Type': 'image/webp',
-          'Cache-Control': 'public, max-age=31536000, immutable',
+          ...IMMUTABLE_HEADERS,
         },
       });
     }
@@ -190,7 +197,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
         return new NextResponse(new Uint8Array(byteArray), {
           headers: {
             'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=31536000, immutable',
+            ...IMMUTABLE_HEADERS,
           },
         });
       }
@@ -201,7 +208,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
       const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
       if (supabaseUrl) {
         const fallbackUrl = `${supabaseUrl}/storage/v1/object/public/manga-images/${key}`;
-        const fallbackRes = await fetch(fallbackUrl);
+        const fallbackRes = await fetch(fallbackUrl, {
+          signal: AbortSignal.timeout(3000),
+        });
 
         if (fallbackRes.ok) {
           const fallbackBlob = await fallbackRes.arrayBuffer();
@@ -210,34 +219,35 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
           return new NextResponse(fallbackBlob, {
             headers: {
               'Content-Type': contentType,
-              'Cache-Control': 'public, max-age=31536000, immutable',
+              ...IMMUTABLE_HEADERS,
             },
           });
         }
       }
-      // 4. MinIO local storage check
-      try {
-        const minioRes = await fetch(`http://localhost:9000/manga-images/${key}`);
-        if (minioRes.ok) {
-          const minioBlob = await minioRes.arrayBuffer();
-          const contentType = minioRes.headers.get('content-type') || 'image/webp';
-          return new NextResponse(minioBlob, {
-            headers: {
-              'Content-Type': contentType,
-              'Cache-Control': 'public, max-age=31536000, immutable',
-            },
+      // 4. MinIO local storage check (Only in local development)
+      if (process.env.NODE_ENV === 'development') {
+        try {
+          const minioRes = await fetch(`http://localhost:9000/manga-images/${key}`, {
+            signal: AbortSignal.timeout(1000),
           });
-        }
-      } catch {}
+          if (minioRes.ok) {
+            const minioBlob = await minioRes.arrayBuffer();
+            const contentType = minioRes.headers.get('content-type') || 'image/webp';
+            return new NextResponse(minioBlob, {
+              headers: {
+                'Content-Type': contentType,
+                ...IMMUTABLE_HEADERS,
+              },
+            });
+          }
+        } catch {}
+      }
     } catch {
       // Ignore fallback errors
     }
   }
 
   return new NextResponse(FALLBACK_SVG, {
-    headers: {
-      'Content-Type': 'image/svg+xml',
-      'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
-    },
+    headers: FALLBACK_HEADERS,
   });
 }

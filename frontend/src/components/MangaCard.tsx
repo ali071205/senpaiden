@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { coverGradient, formatViews, getOptimizedImageUrl, type Manga } from "@/lib/manga-data";
-import { isMatureManga } from "@/lib/age-restriction";
 import { Eye } from "lucide-react";
 
 import { SmartImage } from "@/components/SmartImage";
@@ -70,12 +69,6 @@ export function MangaCard({ manga, showChapter, rank, className = "" }: Props) {
         {(!displayRank || displayRank <= 0) && manga.tag && (
           <div className="absolute left-2 top-2 rounded-md sd-gradient px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow-lg">
             {manga.tag}
-          </div>
-        )}
-
-        {isMatureManga(manga.genres) && (
-          <div className="absolute right-2 top-2 rounded-md bg-red-600/90 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-lg border border-red-400/30">
-            18+
           </div>
         )}
 

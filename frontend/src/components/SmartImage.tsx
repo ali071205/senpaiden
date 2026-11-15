@@ -12,7 +12,6 @@ function resolveImageSrc(url?: string): string | undefined {
   if (!url) return undefined;
   if (url.startsWith("/api/image/proxy")) return url;
   if (
-    url.includes("atsu.moe") ||
     url.includes("mangapill.com") ||
     url.includes("readdetectiveconan.com")
   ) {

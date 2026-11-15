@@ -15,6 +15,9 @@ export const MATURE_GENRES = [
   "Yaoi",
   "BL",
   "Yuri",
+  "GL",
+  "Shounen Ai",
+  "Shoujo Ai",
 ] as const;
 
 const MATURE_GENRES_SET = new Set(MATURE_GENRES.map((g) => g.toLowerCase()));
@@ -37,46 +40,25 @@ export function isMatureManga(genres?: string[]): boolean {
 
 /**
  * Reads whether 18+ mode is currently enabled on the client.
+ * Always returns false as 18+/sexual content is disabled site-wide.
  */
 export function getIs18Plus(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const local = localStorage.getItem(AGE_RESTRICTION_STORAGE_KEY);
-    if (local === "true") return true;
-    if (local === "false") return false;
-
-    // Fallback to cookie check
-    const match = document.cookie.match(new RegExp(`(^|;\\s*)${AGE_RESTRICTION_COOKIE}=([^;]*)`));
-    return match ? match[2] === "true" : false;
-  } catch {
-    return false;
-  }
+  return false;
 }
 
 /**
- * Updates 18+ mode in localStorage, cookie, and dispatches a broadcast event.
+ * No-op setter for 18+ mode.
  */
-export function setIs18Plus(enabled: boolean): void {
+export function setIs18Plus(_enabled: boolean): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(AGE_RESTRICTION_STORAGE_KEY, enabled ? "true" : "false");
-    const maxAge = enabled ? 31536000 : 0;
-    document.cookie = `${AGE_RESTRICTION_COOKIE}=${enabled ? "true" : "false"}; path=/; max-age=${maxAge}; SameSite=Lax`;
-  } catch (err) {
-    console.error("Failed to persist age restriction setting:", err);
-  }
-
-  window.dispatchEvent(
-    new CustomEvent(AGE_RESTRICTION_UPDATED_EVENT, {
-      detail: { is18Plus: enabled },
-    })
-  );
+    localStorage.removeItem(AGE_RESTRICTION_STORAGE_KEY);
+    document.cookie = `${AGE_RESTRICTION_COOKIE}=false; path=/; max-age=0; SameSite=Lax`;
+  } catch {}
 }
 
 /**
- * Helper to trigger the global Age Confirmation Modal.
+ * No-op helper for age modal.
  */
-export function openAgeVerificationModal(): void {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(OPEN_AGE_RESTRICTION_MODAL_EVENT));
-}
+export function openAgeVerificationModal(): void {}
+
