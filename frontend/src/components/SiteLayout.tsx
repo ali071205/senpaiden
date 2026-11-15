@@ -10,8 +10,6 @@ import { getLevel, getReaderProgression, PROGRESSION_UPDATED_EVENT } from "@/lib
 import { AUTH_UPDATED_EVENT, getStoredAccount, isSignedIn } from "@/lib/auth-storage";
 import { OPEN_CONSENT_EVENT } from "@/lib/consent";
 import { StickyAnchorAd, ADS_ENABLED } from "@/components/ads";
-import { AgeRestrictionToggle } from "@/components/AgeRestrictionToggle";
-import { AgeConfirmationModal } from "@/components/AgeConfirmationModal";
 import {
   Home, LayoutGrid, RefreshCw, Bookmark, History,
   Search, Bell,
@@ -215,10 +213,6 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
             <Search size={13} />
           </Link>
 
-          <div className="flex items-center bg-white/5 border border-white/10 rounded-full px-2 py-0.5 shrink-0">
-            <AgeRestrictionToggle variant="compact" />
-          </div>
-
           <Link href={signedIn ? "/account" : "/login"} aria-label={signedIn ? "Account" : "Log in"} className="flex items-center gap-1.5 shrink-0 transition-opacity hover:opacity-80">
             {signedIn ? <>
             <div className="flex items-center justify-center bg-white/5 border border-white/10 rounded-full px-2 py-0.5 text-[10px] font-bold text-zinc-300">
@@ -302,11 +296,6 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
 
         {/* PINNED SIDEBAR FOOTER (ALWAYS VISIBLE - NEVER CUT OFF) */}
         <div className="shrink-0 px-4 pt-2.5 pb-3 flex flex-col gap-2.5 border-t border-white/10 bg-[#0C0E14] z-10">
-          {/* 18+ AGE RESTRICTION TOGGLE - PROMINENT & ALWAYS VISIBLE */}
-          <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-3 py-1 hover:border-white/20 transition-all">
-            <AgeRestrictionToggle variant="compact" />
-          </div>
-
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1 bg-white/5 rounded-full p-1 w-fit">
               <button
@@ -374,11 +363,6 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
                 </Link>
              ))}
              <div className="mx-4 my-2 h-px bg-white/5" />
-             <div className="px-6 py-2 flex items-center justify-between">
-               <span className="text-xs font-semibold text-zinc-300">18+ Content</span>
-               <AgeRestrictionToggle variant="compact" />
-             </div>
-             <div className="mx-4 my-2 h-px bg-white/5" />
              {[
                { icon: Bell, label: "Notifications", path: "/notifications" },
                { icon: UserRound, label: "Account", path: "/account" },
@@ -431,9 +415,6 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
           </form>
 
           <div className="flex items-center gap-4 ml-auto">
-            <div className="flex items-center bg-white/5 border border-white/10 rounded-full px-2.5 py-0.5">
-              <AgeRestrictionToggle variant="compact" />
-            </div>
             <Link href="/notifications" aria-label={`Open notifications${unreadNotifications ? `, ${unreadNotifications} unread` : ""}`} className="relative w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 text-zinc-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
               <Bell size={18} />
               {unreadNotifications > 0 && <span className="absolute right-0.5 top-0.5 grid min-h-4 min-w-4 place-items-center rounded-full border-2 border-[#0F1117] bg-primary px-0.5 text-[8px] font-black leading-none text-white">{unreadNotifications > 9 ? "9+" : unreadNotifications}</span>}
@@ -460,7 +441,6 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
             <footer className="mx-4 mt-10 border-t border-white/5 px-2 py-8 md:mx-8 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <p className="text-xs text-zinc-600">© 2026 SenpaiDen. Reader-first manga discovery.</p>
-                <AgeRestrictionToggle variant="default" />
               </div>
               <nav aria-label="Legal and company links" className="flex flex-wrap gap-x-5 gap-y-3">
                 {[
@@ -492,9 +472,6 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
           )}
         </main>
       </div>
-
-      {/* Global Age Verification Modal */}
-      <AgeConfirmationModal />
 
       {/* Floating Status Bar / Bottom Anchor Ad Banner */}
       {!isReader && ADS_ENABLED && <StickyAnchorAd />}

@@ -9,26 +9,21 @@ import { FeaturedHeroCarousel } from "@/components/FeaturedHeroCarousel";
 import { Frown, ChevronRight } from "lucide-react";
 import { getLocalCatalogue, type CatalogueManga } from "@/lib/local-catalogue";
 
-// force-dynamic: Every request re-renders with fresh cookies (required for 18+ toggle to work correctly)
 export const dynamic = 'force-dynamic';
 
-import { cookies } from "next/headers";
 import { getCachedMangaList } from "@/lib/cache";
-import { AGE_RESTRICTION_COOKIE, isMatureManga } from "@/lib/age-restriction";
+import { isMatureManga } from "@/lib/age-restriction";
 
 export default async function Home({ searchParams }: { searchParams?: Promise<{ q?: string }> }) {
   const resolvedSearchParams = await searchParams;
   const searchQuery = resolvedSearchParams?.q?.trim() || "";
 
-  const cookieStore = await cookies();
-  const allow18Plus = cookieStore.get(AGE_RESTRICTION_COOKIE)?.value === "true";
-  
   const mapToUi = (items: CatalogueManga[], startRank = 0) => {
     const seenIds = new Set<string>();
     return items
       .filter((m) => {
         if (!m.id || seenIds.has(m.id)) return false;
-        if (!allow18Plus && isMatureManga(m.genres)) return false;
+        if (isMatureManga(m.genres)) return false;
         seenIds.add(m.id);
         return true;
       })
@@ -60,7 +55,6 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
         q: searchQuery,
         page: 1,
         limit: 24,
-        allow18Plus,
       });
       if (result.data && result.data.length > 0) {
         searchResults = result.data as CatalogueManga[];
@@ -70,7 +64,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
     }
     if (!searchResults.length) {
       const local = await getLocalCatalogue();
-      const filteredLocal = allow18Plus ? local : local.filter((m) => !isMatureManga(m.genres));
+      const filteredLocal = local.filter((m) => !isMatureManga(m.genres));
       searchResults = filteredLocal
         .filter((manga) => manga.title.toLowerCase().includes(searchQuery.toLowerCase()))
         .slice(0, 24);
@@ -80,21 +74,11 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
     try {
       // Build parallel requests
       const requests: Promise<any>[] = [
-        getCachedMangaList({ page: 1, limit: 108, sort: 'views', allow18Plus }),
-        getCachedMangaList({ page: 1, limit: 24, sort: 'updated', allow18Plus }),
+        getCachedMangaList({ page: 1, limit: 108, sort: 'views' }),
+        getCachedMangaList({ page: 1, limit: 24, sort: 'updated' }),
       ];
 
-      // When 18+ is ON, also fetch top 18+ specific titles for the hero carousel
-      if (allow18Plus) {
-        requests.push(
-          getCachedMangaList({
-            page: 1, limit: 12, sort: 'views', allow18Plus: true,
-            matureOnly: true,
-          })
-        );
-      }
-
-      const [topRes, updatedRes, matureRes] = await Promise.all(requests);
+      const [topRes, updatedRes] = await Promise.all(requests);
 
       const topMangas = (topRes.data || []) as CatalogueManga[];
       const updatedMangas = (updatedRes.data || []) as CatalogueManga[];
@@ -102,23 +86,13 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
       const topUi = mapToUi(topMangas, 1);
       const updatedUi = mapToUi(updatedMangas);
 
-      // When 18+ is ON, show 18+ titles FIRST in the hero carousel so they're immediately visible
-      if (allow18Plus && matureRes?.data?.length) {
-        const matureUi = mapToUi(matureRes.data as CatalogueManga[]);
-        const top2Mature = matureUi.slice(0, 2);
-        const top4NonMature = topUi.slice(0, 4);
-        // 18+ titles first so user sees them immediately: [18+ #1, 18+ #2, mainstream #1, #2, #3, #4]
-        featuredItems = [...top2Mature, ...top4NonMature].slice(0, 6);
-      } else {
-        featuredItems = topUi.slice(0, 6);
-      }
-
+      featuredItems = topUi.slice(0, 6);
       top100 = topUi;
       updated = updatedUi.slice(0, 24);
     } catch {
       // Fallback to local catalogue
       const local = await getLocalCatalogue();
-      const filteredLocal = allow18Plus ? local : local.filter((m) => !isMatureManga(m.genres));
+      const filteredLocal = local.filter((m) => !isMatureManga(m.genres));
       const localUi = mapToUi(filteredLocal, 1);
       featuredItems = localUi.slice(0, 6);
       top100 = localUi;

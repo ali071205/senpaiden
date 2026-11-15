@@ -388,13 +388,22 @@ export async function GET(
       new Set((finalChapters || []).map((c) => (c as { language?: string }).language).filter(Boolean))
     );
 
-    return NextResponse.json({
-      manga,
-      chapter,
-      chapters: finalChapters,
-      pages: sanitizedPages.length > 0 ? sanitizedPages : (pages || []),
-      available_languages: available_languages.length > 0 ? available_languages : ['en'],
-    });
+    return NextResponse.json(
+      {
+        manga,
+        chapter,
+        chapters: finalChapters,
+        pages: sanitizedPages.length > 0 ? sanitizedPages : (pages || []),
+        available_languages: available_languages.length > 0 ? available_languages : ['en'],
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
+          'CDN-Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
+          'Vercel-CDN-Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
+        },
+      }
+    );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Internal Server Error';
     return NextResponse.json({ error: errorMsg }, { status: 500 });

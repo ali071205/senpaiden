@@ -4,10 +4,9 @@ import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { CategorySearchBar } from "@/components/CategorySearchBar";
 import { AdSlot, ADS_ENABLED } from "@/components/ads";
 import { ChevronLeft, ChevronRight, Frown } from "lucide-react";
-import { cookies } from "next/headers";
 import { getCachedMangaList } from "@/lib/cache";
 import { getLocalCatalogue, type CatalogueManga } from "@/lib/local-catalogue";
-import { AGE_RESTRICTION_COOKIE, isMatureManga } from "@/lib/age-restriction";
+import { isMatureManga } from "@/lib/age-restriction";
 
 export const revalidate = 60; // Edge Cache
 
@@ -27,9 +26,6 @@ export default async function Discover({ searchParams }: { searchParams: Promise
   const sort = resolvedParams.sort;
   const limit = 24;
 
-  const cookieStore = await cookies();
-  const allow18Plus = cookieStore.get(AGE_RESTRICTION_COOKIE)?.value === "true";
-  
   let mangas: CatalogueManga[] = [];
   let totalCount = 0;
 
@@ -42,7 +38,6 @@ export default async function Discover({ searchParams }: { searchParams: Promise
       sort,
       page: pageNum,
       limit,
-      allow18Plus,
     });
     if (result.data && result.data.length > 0) {
       mangas = result.data as CatalogueManga[];
@@ -53,10 +48,7 @@ export default async function Discover({ searchParams }: { searchParams: Promise
   }
   if (!mangas.length) {
     const local = await getLocalCatalogue();
-    let filtered = local;
-    if (!allow18Plus) {
-      filtered = filtered.filter((m) => !isMatureManga(m.genres));
-    }
+    let filtered = local.filter((m) => !isMatureManga(m.genres));
     if (searchQuery) {
       filtered = filtered.filter((m) => m.title.toLowerCase().includes(searchQuery.toLowerCase()));
     }
@@ -82,7 +74,7 @@ export default async function Discover({ searchParams }: { searchParams: Promise
   const seenIds = new Set<string>();
   const uniqueMangas = mangas.filter((m) => {
     if (!m.id || seenIds.has(m.id)) return false;
-    if (!allow18Plus && isMatureManga(m.genres)) return false;
+    if (isMatureManga(m.genres)) return false;
     seenIds.add(m.id);
     return true;
   });

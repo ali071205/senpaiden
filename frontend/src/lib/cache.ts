@@ -1,5 +1,5 @@
 import { getSupabase } from './supabase';
-import { MATURE_GENRES } from './age-restriction';
+import { MATURE_GENRES, isMatureGenre, isMatureManga } from './age-restriction';
 
 interface CacheEntry<T> {
   data: T;
@@ -54,28 +54,26 @@ export async function getCachedMangaList(params: {
   page?: number;
   limit?: number;
   allow18Plus?: boolean;
-  /** When true, only return manga that have at least one mature genre (OR match) */
   matureOnly?: boolean;
 }) {
-  const { q = '', genre = '', sort = '', page = 1, limit = 24, allow18Plus = false, matureOnly = false } = params;
+  const { q = '', genre = '', sort = '', page = 1, limit = 24 } = params;
 
-  // Normalize included genres array
+  // Normalize included genres array (stripping any mature genres)
   const incList = Array.isArray(params.included)
     ? params.included
     : (params.included ? params.included.split(',').map((s) => s.trim()).filter(Boolean) : []);
-  const normalizedIncluded = Array.from(new Set(incList.map((g) => g.trim()).filter(Boolean))).sort();
+  const normalizedIncluded = Array.from(
+    new Set(incList.map((g) => g.trim()).filter((g) => Boolean(g) && !isMatureGenre(g)))
+  ).sort();
 
-  // Normalize excluded genres array
+  // Normalize excluded genres array (ALWAYS include all MATURE_GENRES unconditionally)
   const rawExcList = Array.isArray(params.excluded)
     ? params.excluded
     : (params.excluded ? params.excluded.split(',').map((s) => s.trim()).filter(Boolean) : []);
-  const excList = [...rawExcList];
-  if (!allow18Plus) {
-    excList.push(...MATURE_GENRES);
-  }
+  const excList = [...rawExcList, ...MATURE_GENRES];
   const normalizedExcluded = Array.from(new Set(excList.map((g) => g.trim()).filter(Boolean))).sort();
 
-  const cacheKey = `manga_list:q=${q}:genre=${genre}:inc=${normalizedIncluded.join(',')}:exc=${normalizedExcluded.join(',')}:sort=${sort}:p=${page}:l=${limit}:adult=${allow18Plus ? 1 : 0}:matureOnly=${matureOnly ? 1 : 0}`;
+  const cacheKey = `manga_list:q=${q}:genre=${genre}:inc=${normalizedIncluded.join(',')}:exc=${normalizedExcluded.join(',')}:sort=${sort}:p=${page}:l=${limit}:safe=1`;
   const cached = getCached<{ data: any[]; total: number; page: number; limit: number }>(cacheKey);
   if (cached) return cached;
 
@@ -109,18 +107,12 @@ export async function getCachedMangaList(params: {
 
   // Combined included genres (from param or single genre filter)
   const effectiveIncluded = [...normalizedIncluded];
-  if (genre && genre.trim() !== '' && genre !== 'All' && !effectiveIncluded.some((g) => g.toLowerCase() === genre.toLowerCase())) {
+  if (genre && genre.trim() !== '' && genre !== 'All' && !isMatureGenre(genre) && !effectiveIncluded.some((g) => g.toLowerCase() === genre.toLowerCase())) {
     effectiveIncluded.push(genre);
   }
 
   if (effectiveIncluded.length > 0) {
     query = query.contains('genres', effectiveIncluded);
-  }
-
-  // matureOnly: match titles with ANY mature genre (OR / overlap logic)
-  if (matureOnly) {
-    const matureArr = `{${MATURE_GENRES.map((g) => g.includes(' ') ? `"${g}"` : g).join(',')}}`;
-    query = query.overlaps('genres', matureArr);
   }
 
   if (normalizedExcluded.length > 0) {
@@ -137,9 +129,9 @@ export async function getCachedMangaList(params: {
     return { data: [], total: 0, page, limit };
   }
 
-  // Filter out disabled/broken legacy titles
+  // Filter out disabled/broken legacy titles and any mature titles
   const rawList = (data || []).filter(
-    (m: any) => !m.title_i18n?.disabled && !m.title_i18n?.is_disabled
+    (m: any) => !m.title_i18n?.disabled && !m.title_i18n?.is_disabled && !isMatureManga(m.genres)
   );
 
   // If this is a search query, sort by relevance and views so exact/prefix matches come first
@@ -214,7 +206,7 @@ export async function getCachedMangaList(params: {
 }
 
 export async function getCachedGenres() {
-  const cacheKey = 'global_genres_list';
+  const cacheKey = 'global_genres_list_safe';
   const cached = getCached<{ name: string; slug: string }[]>(cacheKey);
   if (cached) return cached;
 
@@ -223,7 +215,7 @@ export async function getCachedGenres() {
     "Isekai", "Martial Arts", "Mystery", "Psychological", "Romance", 
     "Sci-Fi", "Seinen", "Shounen", "Slice of Life", "Sports", 
     "Supernatural", "Thriller", "Tragedy", "Manhwa", "Webtoon"
-  ].map(g => ({ name: g, slug: g.toLowerCase().replace(/\s+/g, '-') }));
+  ].filter((g) => !isMatureGenre(g)).map(g => ({ name: g, slug: g.toLowerCase().replace(/\s+/g, '-') }));
 
   const supabase = getSupabase();
   if (!supabase) return STANDARD_GENRES;
@@ -231,8 +223,9 @@ export async function getCachedGenres() {
   try {
     const { data, error } = await supabase.from('genres').select('name, slug').order('name');
     if (!error && data && data.length > 0) {
-      setCached(cacheKey, data, 1800); // 30 minutes
-      return data;
+      const safeGenres = data.filter((g: any) => !isMatureGenre(g.name));
+      setCached(cacheKey, safeGenres, 1800); // 30 minutes
+      return safeGenres;
     }
   } catch {}
 
@@ -240,8 +233,8 @@ export async function getCachedGenres() {
   return STANDARD_GENRES;
 }
 
-export async function getCachedCatalogVectors(allow18Plus: boolean = false) {
-  const cacheKey = `catalog_vectors_data:adult=${allow18Plus ? 1 : 0}`;
+export async function getCachedCatalogVectors(_allow18Plus: boolean = false) {
+  const cacheKey = `catalog_vectors_data:safe=1`;
   const cached = getCached<any[]>(cacheKey);
   if (cached) return cached;
 
@@ -249,16 +242,14 @@ export async function getCachedCatalogVectors(allow18Plus: boolean = false) {
   if (!supabase) return [];
 
   try {
-    let query: any = supabase
+    const pgArray = `{${MATURE_GENRES.map((g) => g.includes(' ') ? `"${g}"` : g).join(',')}}`;
+    const query: any = supabase
       .from('manga')
       .select('id, title, cover_url, status, genres, title_i18n')
       .neq('title', 'm')
       .not('cover_url', 'is', null)
-      .or('title_i18n->disabled.is.null,title_i18n->disabled.eq.false');
-
-    if (!allow18Plus) {
-      query = query.not('genres', 'ov', `{${MATURE_GENRES.join(',')}}`);
-    }
+      .or('title_i18n->disabled.is.null,title_i18n->disabled.eq.false')
+      .not('genres', 'ov', pgArray);
 
     const { data: initialItems, error } = await query
       .order('view_count', { ascending: false, nullsFirst: false })
@@ -284,7 +275,7 @@ export async function getCachedCatalogVectors(allow18Plus: boolean = false) {
     }
 
     const mapped = (initialItems || [])
-      .filter((item: any) => !item.title_i18n?.disabled && !item.title_i18n?.is_disabled)
+      .filter((item: any) => !item.title_i18n?.disabled && !item.title_i18n?.is_disabled && !isMatureManga(item.genres))
       .map((item: any) => ({
         slug: item.id,
         title: item.title,
@@ -315,7 +306,8 @@ export async function resolveMangaRecord(idOrSlug: string, supabase: any) {
       .select('*')
       .eq('id', idOrSlug)
       .maybeSingle();
-    if (data) return data;
+    if (data && !isMatureManga(data.genres)) return data;
+    if (data && isMatureManga(data.genres)) return null;
   }
 
   // 2. Source ID lookup (e.g. MangaDex UUID or MangaPill ID)
@@ -326,8 +318,9 @@ export async function resolveMangaRecord(idOrSlug: string, supabase: any) {
     .order('view_count', { ascending: false, nullsFirst: false })
     .limit(5);
   if (bySource && bySource.length > 0) {
-    const active = bySource.find((m: any) => !m.title_i18n?.disabled) || bySource[0];
-    return active;
+    const active = bySource.find((m: any) => !m.title_i18n?.disabled && !isMatureManga(m.genres));
+    if (active) return active;
+    if (bySource.some((m: any) => isMatureManga(m.genres))) return null;
   }
 
   // 3. Exact Title / Clean Slug lookup (preferring active titles)
@@ -339,8 +332,9 @@ export async function resolveMangaRecord(idOrSlug: string, supabase: any) {
     .order('view_count', { ascending: false, nullsFirst: false })
     .limit(5);
   if (byTitle && byTitle.length > 0) {
-    const active = byTitle.find((m: any) => !m.title_i18n?.disabled) || byTitle[0];
-    return active;
+    const active = byTitle.find((m: any) => !m.title_i18n?.disabled && !isMatureManga(m.genres));
+    if (active) return active;
+    if (byTitle.some((m: any) => isMatureManga(m.genres))) return null;
   }
 
   // 4. Fuzzy / Substring Title lookup
@@ -351,8 +345,9 @@ export async function resolveMangaRecord(idOrSlug: string, supabase: any) {
     .order('view_count', { ascending: false, nullsFirst: false })
     .limit(5);
   if (byFuzzy && byFuzzy.length > 0) {
-    const active = byFuzzy.find((m: any) => !m.title_i18n?.disabled) || byFuzzy[0];
-    return active;
+    const active = byFuzzy.find((m: any) => !m.title_i18n?.disabled && !isMatureManga(m.genres));
+    if (active) return active;
+    if (byFuzzy.some((m: any) => isMatureManga(m.genres))) return null;
   }
 
   return null;
@@ -361,7 +356,10 @@ export async function resolveMangaRecord(idOrSlug: string, supabase: any) {
 export async function getCachedMangaDetail(id: string) {
   const cacheKey = `manga_detail:${id}`;
   const cached = getCached<any>(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    if (isMatureManga(cached.genres)) return null;
+    return cached;
+  }
 
   const inFlight = inFlightPromises.get(cacheKey);
   if (inFlight) return inFlight;
@@ -372,7 +370,7 @@ export async function getCachedMangaDetail(id: string) {
   const fetchPromise = (async () => {
     try {
       const manga = await resolveMangaRecord(id, supabase);
-      if (!manga) return null;
+      if (!manga || isMatureManga(manga.genres)) return null;
 
     let chapters: any[] = [];
     let from = 0;
@@ -533,6 +531,7 @@ export async function getCachedRecommendations(excludeId: string) {
 
   const fetchPromise = (async () => {
     try {
+    const pgArray = `{${MATURE_GENRES.map((g) => g.includes(' ') ? `"${g}"` : g).join(',')}}`;
     const { data: mangas } = await supabase
       .from('manga')
       .select('id, title, cover_url, status, genres, description, title_i18n')
@@ -540,6 +539,7 @@ export async function getCachedRecommendations(excludeId: string) {
       .neq('title', 'm')
       .not('cover_url', 'is', null)
       .or('title_i18n->disabled.is.null,title_i18n->disabled.eq.false')
+      .not('genres', 'ov', pgArray)
       .order('updated_at', { ascending: false })
       .limit(6);
 
@@ -561,7 +561,7 @@ export async function getCachedRecommendations(excludeId: string) {
       }
     }
 
-    const result = (mangas || []).map((m: any) => ({
+    const result = (mangas || []).filter((m: any) => !isMatureManga(m.genres)).map((m: any) => ({
       ...m,
       latest_chapter_number: maxChapterMemCache.get(m.id) || m.title_i18n?.latest_chapter || m.title_i18n?.total_chapters || 1,
     }));

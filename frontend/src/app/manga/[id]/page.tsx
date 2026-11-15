@@ -7,6 +7,8 @@ import { getLocalCatalogue, type CatalogueManga } from "@/lib/local-catalogue";
 import { getCachedMangaDetail, getCachedRecommendations } from "@/lib/cache";
 import { cleanDescription, mangaCanonical, SITE_NAME, absoluteUrl } from "@/lib/seo";
 
+import { isMatureManga } from "@/lib/age-restriction";
+
 export const revalidate = 60;
 
 interface ChapterItem {
@@ -21,8 +23,12 @@ interface ChapterItem {
 
 const getManga = cache(async (id: string): Promise<(CatalogueManga & { chapters?: ChapterItem[] }) | null> => {
   const data = await getCachedMangaDetail(id);
-  if (data) return data as any;
+  if (data) {
+    if (isMatureManga(data.genres)) return null;
+    return data as any;
+  }
   const local = (await getLocalCatalogue()).find((item) => item.id === id);
+  if (local && isMatureManga(local.genres)) return null;
   return local ? { ...local, chapters: [] } : null;
 });
 

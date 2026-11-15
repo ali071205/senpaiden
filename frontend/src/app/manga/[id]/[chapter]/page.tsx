@@ -72,6 +72,8 @@ export async function generateMetadata({
   };
 }
 
+import { isMatureManga } from "@/lib/age-restriction";
+
 export default async function ReaderPage({ params }: { params: Promise<{ id: string; chapter: string }> }) {
   const resolvedParams = await params;
   const apiUrl = getApiUrl();
@@ -79,7 +81,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
   try {
     const compoundRes = await fetch(
       `${apiUrl}/api/manga/${resolvedParams.id}/chapter/${resolvedParams.chapter}`,
-      { cache: "no-store" }
+      { next: { revalidate: 86400 } }
     );
 
     if (!compoundRes.ok) {
@@ -90,6 +92,9 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
     }
 
     const { manga, chapter, chapters, pages, available_languages } = await compoundRes.json();
+    if (isMatureManga(manga?.genres)) {
+      notFound();
+    }
     const freshness = compoundRes.headers.get("x-content-freshness") as "fresh" | "stale" | "archived" | null;
 
     fetchApi(`/api/chapter/${chapter.id}/read`, { method: "POST" }).catch(() => {});
