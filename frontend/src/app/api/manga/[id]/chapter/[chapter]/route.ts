@@ -3,25 +3,22 @@ import { getSupabase } from '@/lib/supabase';
 import { resolveMangaRecord } from '@/lib/cache';
 import { isGDriveConfigured } from '@/lib/gdrive';
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string; chapter: string }> }
-) {
-  try {
-    const supabase = getSupabase();
-    if (!supabase) {
-      return NextResponse.json({ error: 'Supabase environment variables not configured.' }, { status: 500 });
-    }
+const UPSTREAM_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Referer': 'https://atsu.moe/',
+};
 
-    const { id: rawMangaId, chapter: chapterNumStr } = await params;
-    const chapterNumber = parseFloat(chapterNumStr);
+export async function resolveChapterData(rawMangaId: string, chapterNumStr: string) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
 
-    // Fetch manga details via universal resolver (UUID, slug, title, or source_id)
-    const manga = await resolveMangaRecord(rawMangaId, supabase);
-    if (!manga) {
-      return NextResponse.json({ error: 'Manga not found' }, { status: 404 });
-    }
-    const mangaId = manga.id;
+  const chapterNumber = parseFloat(chapterNumStr);
+
+  // Fetch manga details via universal resolver (UUID, slug, title, or source_id)
+  const manga = await resolveMangaRecord(rawMangaId, supabase);
+  if (!manga) return null;
+  const mangaId = manga.id;
 
     // Fetch all chapters for navigation
     let chapters: any[] = [];
@@ -45,6 +42,7 @@ export async function GET(
         let rawChapters: any[] = [];
         if (manga.source_provider === 'atsu') {
           const res = await fetch(`https://atsu.moe/api/manga/allChapters?mangaId=${manga.source_id}`, {
+            headers: UPSTREAM_HEADERS,
             signal: AbortSignal.timeout(8000),
           });
           if (res.ok) {
@@ -62,6 +60,7 @@ export async function GET(
         } else if (manga.source_provider === 'asura') {
           const slug = manga.source_id.replace(/^asura:/, '');
           const res = await fetch(`https://api.asurascans.com/api/series/${slug}/chapters`, {
+            headers: UPSTREAM_HEADERS,
             signal: AbortSignal.timeout(8000),
           });
           if (res.ok) {
@@ -226,6 +225,7 @@ export async function GET(
           }
           if (!chapterId) {
             const allChRes = await fetch(`https://atsu.moe/api/manga/allChapters?mangaId=${manga.source_id}`, {
+              headers: UPSTREAM_HEADERS,
               signal: AbortSignal.timeout(8000),
             });
             if (allChRes.ok) {
@@ -238,7 +238,10 @@ export async function GET(
           if (chapterId) {
             const readRes = await fetch(
               `https://atsu.moe/api/read/chapter?mangaId=${manga.source_id}&chapterId=${chapterId}`,
-              { signal: AbortSignal.timeout(8000) }
+              {
+                headers: UPSTREAM_HEADERS,
+                signal: AbortSignal.timeout(8000),
+              }
             );
             if (readRes.ok) {
               const readData = await readRes.json();
@@ -260,7 +263,10 @@ export async function GET(
           const seriesSlug = manga.source_id.replace(/^asura:/, '');
           const asuraRes = await fetch(
             `https://api.asurascans.com/api/series/${seriesSlug}/chapters/${chapterNumber}`,
-            { signal: AbortSignal.timeout(8000) }
+            {
+              headers: UPSTREAM_HEADERS,
+              signal: AbortSignal.timeout(8000),
+            }
           );
           if (asuraRes.ok) {
             const asuraJson = await asuraRes.json();
@@ -384,26 +390,41 @@ export async function GET(
       (a, b) => Number(a.chapter_number) - Number(b.chapter_number)
     );
 
-    const available_languages = Array.from(
-      new Set((finalChapters || []).map((c) => (c as { language?: string }).language).filter(Boolean))
+    const available_languages: string[] = Array.from(
+      new Set(
+        (finalChapters || [])
+          .map((c) => (c as { language?: string }).language)
+          .filter((l): l is string => Boolean(l))
+      )
     );
 
-    return NextResponse.json(
-      {
-        manga,
-        chapter,
-        chapters: finalChapters,
-        pages: sanitizedPages.length > 0 ? sanitizedPages : (pages || []),
-        available_languages: available_languages.length > 0 ? available_languages : ['en'],
+    return {
+      manga,
+      chapter,
+      chapters: finalChapters,
+      pages: sanitizedPages.length > 0 ? sanitizedPages : (pages || []),
+      available_languages: available_languages.length > 0 ? available_languages : ['en'],
+    };
+}
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string; chapter: string }> }
+) {
+  try {
+    const { id, chapter } = await params;
+    const data = await resolveChapterData(id, chapter);
+    if (!data) {
+      return NextResponse.json({ error: 'Manga or chapter not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(data, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
+        'CDN-Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
+        'Vercel-CDN-Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
       },
-      {
-        headers: {
-          'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
-          'CDN-Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
-          'Vercel-CDN-Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
-        },
-      }
-    );
+    });
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Internal Server Error';
     return NextResponse.json({ error: errorMsg }, { status: 500 });

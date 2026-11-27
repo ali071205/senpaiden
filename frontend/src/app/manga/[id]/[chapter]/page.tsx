@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { MangaReaderContainer } from "@/components/MangaReaderContainer";
 import { fetchApi } from "@/lib/api-client";
-import { getApiUrl } from "@/lib/api";
+import { resolveChapterData } from "@/app/api/manga/[id]/chapter/[chapter]/route";
 import { getLocalCatalogue } from "@/lib/local-catalogue";
 import { chapterCanonical, mangaCanonical, SITE_NAME, absoluteUrl } from "@/lib/seo";
 
@@ -76,26 +76,18 @@ import { isMatureManga } from "@/lib/age-restriction";
 
 export default async function ReaderPage({ params }: { params: Promise<{ id: string; chapter: string }> }) {
   const resolvedParams = await params;
-  const apiUrl = getApiUrl();
 
   try {
-    const compoundRes = await fetch(
-      `${apiUrl}/api/manga/${resolvedParams.id}/chapter/${resolvedParams.chapter}`,
-      { next: { revalidate: 86400 } }
-    );
-
-    if (!compoundRes.ok) {
-      if (compoundRes.status === 400) {
-        redirect(`/manga/${resolvedParams.id}/${resolvedParams.chapter}/processing`);
-      }
+    const data = await resolveChapterData(resolvedParams.id, resolvedParams.chapter);
+    if (!data || !data.manga || !data.chapter) {
       notFound();
     }
 
-    const { manga, chapter, chapters, pages, available_languages } = await compoundRes.json();
+    const { manga, chapter, chapters, pages, available_languages } = data;
     if (isMatureManga(manga?.genres)) {
       notFound();
     }
-    const freshness = compoundRes.headers.get("x-content-freshness") as "fresh" | "stale" | "archived" | null;
+    const freshness = (chapter as any)?.content_freshness as "fresh" | "stale" | "archived" | null;
 
     fetchApi(`/api/chapter/${chapter.id}/read`, { method: "POST" }).catch(() => {});
 
@@ -188,7 +180,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
           pageGroups={pageGroups}
           freshness={freshness ?? undefined}
           r2BaseUrl={r2BaseUrl}
-          availableLanguages={available_languages || ["en", "es", "fr"]}
+          availableLanguages={(available_languages as string[]) || ["en", "es", "fr"]}
           currentLanguage={chapter?.language || "en"}
         />
       </>
