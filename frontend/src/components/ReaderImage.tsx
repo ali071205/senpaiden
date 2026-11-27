@@ -1,9 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Loader2, RefreshCw } from "lucide-react";
-import { Blurhash } from "react-blurhash";
+import { decode } from "blurhash";
+
+/** Native React 19-compatible Blurhash canvas renderer */
+function BlurhashCanvas({ hash, width, height }: { hash: string; width: number; height: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !hash) return;
+    try {
+      const pixels = decode(hash, 32, 32);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const imageData = ctx.createImageData(32, 32);
+      imageData.data.set(pixels);
+      ctx.putImageData(imageData, 0, 0);
+    } catch {
+      // Invalid hash, ignore
+    }
+  }, [hash]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={32}
+      height={32}
+      className="absolute inset-0 w-full h-full"
+      style={{ imageRendering: "pixelated" }}
+    />
+  );
+}
 
 export type PageFitMode = "fit-width" | "fit-height" | "original";
 
@@ -104,14 +134,7 @@ export function ReaderImage({ src, width, height, priority = false, blurhash, co
           className="absolute inset-0 z-0 w-full flex items-center justify-center bg-zinc-950/80 border border-zinc-900/60"
         >
           {blurhash ? (
-            <Blurhash
-              hash={blurhash}
-              width="100%"
-              height="100%"
-              resolutionX={32}
-              resolutionY={32}
-              punch={1}
-            />
+            <BlurhashCanvas hash={blurhash} width={width} height={height} />
           ) : (
             <Loader2 className="h-8 w-8 animate-spin text-zinc-600" />
           )}
