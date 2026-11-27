@@ -1,4 +1,4 @@
-const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://senpaiden.vercel.app";
+const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://senpaiden-seven.vercel.app";
 
 export const SITE_URL = configuredSiteUrl.replace(/\/$/, "");
 export const SITE_NAME = "Senpai Den";

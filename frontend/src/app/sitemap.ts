@@ -1,8 +1,10 @@
 import type { MetadataRoute } from "next";
 import { getLocalCatalogue, type CatalogueManga } from "@/lib/local-catalogue";
-import { SITE_URL, mangaCanonical } from "@/lib/seo";
+import { resolveSiteUrl } from "@/lib/seo-server";
 import { fetchApi } from "@/lib/api-client";
 import { ADS_ENABLED } from "@/lib/monetization";
+
+export const dynamic = "force-dynamic";
 
 const staticRoutes: Array<{ path: string; changeFrequency: "daily" | "weekly" | "monthly"; priority: number }> = [
   { path: "", changeFrequency: "daily", priority: 1 },
@@ -34,6 +36,7 @@ async function getSitemapManga(): Promise<CatalogueManga[]> {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const siteUrl = await resolveSiteUrl();
   let manga: CatalogueManga[] = [];
   try {
     manga = await getSitemapManga();
@@ -42,13 +45,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   const staticEntries: MetadataRoute.Sitemap = staticRoutes.map((route) => ({
-    url: `${SITE_URL}${route.path}`,
+    url: `${siteUrl}${route.path}`,
     changeFrequency: route.changeFrequency,
     priority: route.priority,
   }));
 
   const mangaEntries: MetadataRoute.Sitemap = manga.map((item) => ({
-    url: mangaCanonical(item.id),
+    url: `${siteUrl}/manga/${encodeURIComponent(item.id)}`,
     lastModified: item.updated_at ? new Date(item.updated_at) : undefined,
     changeFrequency: "daily",
     priority: 0.8,
