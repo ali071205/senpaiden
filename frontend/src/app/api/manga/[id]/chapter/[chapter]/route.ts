@@ -418,11 +418,16 @@ export async function GET(
       return NextResponse.json({ error: 'Manga or chapter not found' }, { status: 404 });
     }
 
+    const hasPages = data.pages && data.pages.length > 0;
+    const cacheHeader = hasPages
+      ? 'public, s-maxage=86400, stale-while-revalidate=604800'
+      : 'no-cache, no-store, max-age=0, must-revalidate';
+
     return NextResponse.json(data, {
       headers: {
-        'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
-        'CDN-Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
-        'Vercel-CDN-Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
+        'Cache-Control': cacheHeader,
+        'CDN-Cache-Control': cacheHeader,
+        'Vercel-CDN-Cache-Control': cacheHeader,
       },
     });
   } catch (err) {

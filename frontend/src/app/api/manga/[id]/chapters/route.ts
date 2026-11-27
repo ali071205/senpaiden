@@ -34,13 +34,17 @@ export async function GET(
       from += 1000;
     }
 
+    const cacheHeader = allChapters.length > 0
+      ? 'public, s-maxage=3600, stale-while-revalidate=86400'
+      : 'no-cache, no-store, max-age=0, must-revalidate';
+
     return NextResponse.json(
       { chapters: allChapters },
       {
         headers: {
-          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
-          'CDN-Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
-          'Vercel-CDN-Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+          'Cache-Control': cacheHeader,
+          'CDN-Cache-Control': cacheHeader,
+          'Vercel-CDN-Cache-Control': cacheHeader,
         },
       }
     );

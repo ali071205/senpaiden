@@ -320,7 +320,7 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
                 <Laptop size={12} />
               </button>
               <div className="w-px h-3 bg-white/10 mx-1" />
-              <Link href="/admin" className="p-1.5 rounded-full text-zinc-500 hover:text-primary transition-colors" title="Admin">
+              <Link href="/admin" prefetch={false} className="p-1.5 rounded-full text-zinc-500 hover:text-primary transition-colors" title="Admin">
                 <Shield size={12} />
               </Link>
             </div>

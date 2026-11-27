@@ -353,6 +353,12 @@ export async function resolveMangaRecord(idOrSlug: string, supabase: any) {
   return null;
 }
 
+const UPSTREAM_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Referer': 'https://atsu.moe/',
+};
+
 export async function getCachedMangaDetail(id: string) {
   const cacheKey = `manga_detail:${id}`;
   const cached = getCached<any>(cacheKey);
@@ -400,6 +406,7 @@ export async function getCachedMangaDetail(id: string) {
         let rawChapters: any[] = [];
         if (manga.source_provider === 'atsu') {
           const res = await fetch(`https://atsu.moe/api/manga/allChapters?mangaId=${manga.source_id}`, {
+            headers: UPSTREAM_HEADERS,
             signal: AbortSignal.timeout(8000),
           });
           if (res.ok) {
@@ -417,6 +424,7 @@ export async function getCachedMangaDetail(id: string) {
         } else if (manga.source_provider === 'asura') {
           const slug = manga.source_id.replace(/^asura:/, '');
           const res = await fetch(`https://api.asurascans.com/api/series/${slug}/chapters`, {
+            headers: UPSTREAM_HEADERS,
             signal: AbortSignal.timeout(8000),
           });
           if (res.ok) {

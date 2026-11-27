@@ -60,22 +60,14 @@ const nextConfig = {
           },
         ],
       },
+    ];
+  },
+  async redirects() {
+    return [
       {
-        source: '/api/manga/:id/chapter/:chapter',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, s-maxage=86400, stale-while-revalidate=604800',
-          },
-          {
-            key: 'CDN-Cache-Control',
-            value: 'public, s-maxage=86400, stale-while-revalidate=604800',
-          },
-          {
-            key: 'Vercel-CDN-Cache-Control',
-            value: 'public, s-maxage=86400, stale-while-revalidate=604800',
-          },
-        ],
+        source: '/categories',
+        destination: '/discover',
+        permanent: true,
       },
     ];
   },
