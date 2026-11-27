@@ -1,5 +1,12 @@
 {
+  "scripts": {
+    "dev": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start": "npm run start --prefix frontend",
+    "lint": "npm run lint --prefix frontend"
+  },
   "devDependencies": {
+    "next": "15.5.21",
     "supabase": "^2.109.1"
   },
   "dependencies": {
